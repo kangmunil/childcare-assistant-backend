@@ -19,7 +19,7 @@ public class ChildController {
 
     private final ChildService childService;
 
-    @GetMapping
+    @GetMapping("/getList")
     public ResponseEntity<ChildResponse> getChildren() {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
