@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"status\":\"error\",\"message\":\"인증이 필요합니다.\"}");
+                    response.getWriter().write("{\"status\":\"error\",\"code\":\"AUTH_001\",\"message\":\"인증이 필요합니다.\",\"data\":null}");
                 })
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

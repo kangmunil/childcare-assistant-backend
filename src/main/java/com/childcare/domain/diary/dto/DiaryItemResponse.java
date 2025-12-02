@@ -1,4 +1,4 @@
-package com.childcare.domain.child.dto;
+package com.childcare.domain.diary.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,25 +11,22 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChildResponse {
+public class DiaryItemResponse {
 
     private String status;
     private String code;
     private String message;
-    private List<ChildDto> data;
+    private List<DiaryItemDto> data;
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ChildDto {
+    public static class DiaryItemDto {
         private Long id;
+        private String division;
+        private String code;
         private String name;
-        private String birthDate;
-        private String birthTime;
-        private String gender;
-        private Double height;
-        private Double weight;
-        private String photoUrl;
+        private String unit;
     }
 }
