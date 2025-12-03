@@ -3,6 +3,7 @@ package com.childcare.domain.child.service;
 import com.childcare.domain.child.dto.ChildRequest;
 import com.childcare.domain.child.dto.ChildResponse;
 import com.childcare.domain.child.entity.Child;
+import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.child.repository.ChildRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
@@ -23,11 +24,12 @@ public class ChildService {
 
     private final ChildRepository childRepository;
     private final ParentRepository parentRepository;
+    private final ChildMapper childMapper;
 
     public ChildResponse getChildrenByMemberSeq(Long memberSeq) {
         log.info("Fetching children for member: {}", memberSeq);
 
-        List<Child> children = childRepository.findActiveChildrenByMemberSeq(memberSeq);
+        List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
 
         List<ChildResponse.ChildDto> childDtos = children.stream()
                 .map(this::toDto)

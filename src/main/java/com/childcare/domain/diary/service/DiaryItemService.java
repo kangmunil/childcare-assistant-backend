@@ -2,7 +2,7 @@ package com.childcare.domain.diary.service;
 
 import com.childcare.domain.diary.dto.DiaryItemResponse;
 import com.childcare.domain.diary.entity.CcDiaryItem;
-import com.childcare.domain.diary.repository.CcDiaryItemRepository;
+import com.childcare.domain.diary.mapper.DiaryMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,12 +17,12 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class DiaryItemService {
 
-    private final CcDiaryItemRepository ccDiaryItemRepository;
+    private final DiaryMapper diaryMapper;
 
     public DiaryItemResponse getAllItems() {
         log.info("Fetching all diary items");
 
-        List<CcDiaryItem> items = ccDiaryItemRepository.findAllActive();
+        List<CcDiaryItem> items = diaryMapper.findAllActiveItems();
 
         List<DiaryItemResponse.DiaryItemDto> itemDtos = items.stream()
                 .map(this::toDto)
@@ -38,7 +38,7 @@ public class DiaryItemService {
     public DiaryItemResponse getItemsByDivision(String division) {
         log.info("Fetching diary items by division: {}", division);
 
-        List<CcDiaryItem> items = ccDiaryItemRepository.findByDivision(division);
+        List<CcDiaryItem> items = diaryMapper.findActiveItemsByDivision(division);
 
         List<DiaryItemResponse.DiaryItemDto> itemDtos = items.stream()
                 .map(this::toDto)

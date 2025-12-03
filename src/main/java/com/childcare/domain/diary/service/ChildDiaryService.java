@@ -4,6 +4,7 @@ import com.childcare.domain.diary.dto.ChildDiaryRequest;
 import com.childcare.domain.diary.dto.ChildDiaryResponse;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
+import com.childcare.domain.diary.mapper.DiaryMapper;
 import com.childcare.domain.diary.repository.CcDiaryItemRepository;
 import com.childcare.domain.diary.repository.ChildDiaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +26,12 @@ public class ChildDiaryService {
 
     private final ChildDiaryRepository childDiaryRepository;
     private final CcDiaryItemRepository ccDiaryItemRepository;
+    private final DiaryMapper diaryMapper;
 
     public ChildDiaryResponse getDiariesByChild(Long childId) {
         log.info("Fetching diaries for child: {}", childId);
 
-        List<ChildDiary> diaries = childDiaryRepository.findByChildSeq(childId);
+        List<ChildDiary> diaries = diaryMapper.findDiariesByChildId(childId);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
 
         List<ChildDiaryResponse.ChildDiaryDto> diaryDtos = diaries.stream()
@@ -46,7 +48,7 @@ public class ChildDiaryService {
     public ChildDiaryResponse getDiariesByChildAndDate(Long childId, String date) {
         log.info("Fetching diaries for child: {} on date: {}", childId, date);
 
-        List<ChildDiary> diaries = childDiaryRepository.findByChildSeqAndDate(childId, date);
+        List<ChildDiary> diaries = diaryMapper.findDiariesByChildIdAndDate(childId, date);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
 
         List<ChildDiaryResponse.ChildDiaryDto> diaryDtos = diaries.stream()
@@ -104,7 +106,7 @@ public class ChildDiaryService {
     public ChildDiaryResponse updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
         log.info("Updating diary {} for child: {}", diaryId, childId);
 
-        ChildDiary diary = childDiaryRepository.findActiveById(diaryId)
+        ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
                 .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
 
         if (!diary.getChSeq().equals(childId)) {
@@ -144,7 +146,7 @@ public class ChildDiaryService {
     public ChildDiaryResponse deleteDiary(Long memberSeq, Long childId, Long diaryId) {
         log.info("Deleting diary {} for child: {}", diaryId, childId);
 
-        ChildDiary diary = childDiaryRepository.findActiveById(diaryId)
+        ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
                 .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
 
         if (!diary.getChSeq().equals(childId)) {
@@ -165,7 +167,7 @@ public class ChildDiaryService {
     }
 
     private Map<Long, CcDiaryItem> getItemMap() {
-        return ccDiaryItemRepository.findAllActive().stream()
+        return diaryMapper.findAllActiveItems().stream()
                 .collect(Collectors.toMap(CcDiaryItem::getCcDiSeq, Function.identity()));
     }
 
