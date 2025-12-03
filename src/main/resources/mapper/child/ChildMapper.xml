@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.child.mapper.ChildMapper">
+
+    <resultMap id="childResultMap" type="com.childcare.domain.child.entity.Child">
+        <id property="chSeq" column="ch_seq"/>
+        <result property="name" column="name"/>
+        <result property="birthDay" column="birth_day"/>
+        <result property="birthTime" column="birth_time"/>
+        <result property="gender" column="gender"/>
+        <result property="memo" column="memo"/>
+        <result property="height" column="height"/>
+        <result property="weight" column="weight"/>
+        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteDate" column="delete_date"/>
+    </resultMap>
+
+    <select id="findActiveChildrenByMemberSeq" resultMap="childResultMap">
+        SELECT c.*
+        FROM child c
+        JOIN parent p ON c.ch_seq = p.ch_seq
+        JOIN member m ON p.mb_seq = m.mb_seq
+        WHERE p.mb_seq = #{memberSeq}
+          AND m.leave_date IS NULL
+          AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+    </select>
+
+    <select id="findActiveChildById" resultMap="childResultMap">
+        SELECT *
+        FROM child
+        WHERE ch_seq = #{childId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </select>
+
+</mapper>

@@ -1,4 +1,4 @@
-package com.childcare.domain.child.entity;
+package com.childcare.domain.diary.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -9,38 +9,29 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "child")
+@Table(name = "cc_diary_item")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Child {
+public class CcDiaryItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ch_seq")
-    private Long chSeq;
+    @Column(name = "cc_di_seq")
+    private Long ccDiSeq;
 
-    @Column(name = "name", nullable = false)
-    private String name;
+    @Column(name = "cc_di_div", nullable = false)
+    private String ccDiDiv;
 
-    @Column(name = "birth_day", nullable = false)
-    private String birthDay;
+    @Column(name = "cc_di_code", nullable = false)
+    private String ccDiCode;
 
-    @Column(name = "birth_time", nullable = false)
-    private String birthTime;
+    @Column(name = "cc_di_name", nullable = false)
+    private String ccDiName;
 
-    @Column(name = "gender", length = 1)
-    private String gender;
-
-    @Column(name = "memo", length = 1000)
-    private String memo;
-
-    @Column(name = "height")
-    private Double height;
-
-    @Column(name = "weight")
-    private Double weight;
+    @Column(name = "cc_di_unit", length = 20)
+    private String ccDiUnit;
 
     @Column(name = "reg_user_seq", nullable = false)
     private Long regUserSeq;

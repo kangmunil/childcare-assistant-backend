@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.diary.mapper.DiaryMapper">
+
+    <resultMap id="childDiaryResultMap" type="com.childcare.domain.diary.entity.ChildDiary">
+        <id property="diSeq" column="di_seq"/>
+        <result property="chSeq" column="ch_seq"/>
+        <result property="ccDiSeq" column="cc_di_seq"/>
+        <result property="diDate" column="di_date"/>
+        <result property="diTime" column="di_time"/>
+        <result property="amount" column="amount"/>
+        <result property="memo" column="memo"/>
+        <result property="regAiYn" column="reg_ai_yn"/>
+        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteDate" column="delete_date"/>
+    </resultMap>
+
+    <resultMap id="ccDiaryItemResultMap" type="com.childcare.domain.diary.entity.CcDiaryItem">
+        <id property="ccDiSeq" column="cc_di_seq"/>
+        <result property="ccDiDiv" column="cc_di_div"/>
+        <result property="ccDiCode" column="cc_di_code"/>
+        <result property="ccDiName" column="cc_di_name"/>
+        <result property="ccDiUnit" column="cc_di_unit"/>
+        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteDate" column="delete_date"/>
+    </resultMap>
+
+    <!-- ChildDiary 관련 쿼리 -->
+    <select id="findDiariesByChildId" resultMap="childDiaryResultMap">
+        SELECT *
+        FROM child_diary
+        WHERE ch_seq = #{childId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ORDER BY di_date DESC, di_time DESC
+    </select>
+
+    <select id="findDiariesByChildIdAndDate" resultMap="childDiaryResultMap">
+        SELECT *
+        FROM child_diary
+        WHERE ch_seq = #{childId}
+          AND di_date = #{diDate}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ORDER BY di_time DESC
+    </select>
+
+    <select id="findActiveDiaryById" resultMap="childDiaryResultMap">
+        SELECT *
+        FROM child_diary
+        WHERE di_seq = #{diSeq}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </select>
+
+    <!-- 일지 요약 (항목별 합계) -->
+    <resultMap id="itemSummaryResultMap" type="com.childcare.domain.diary.dto.DiarySummaryDto$ItemSummary">
+        <result property="itemId" column="item_id"/>
+        <result property="itemDivision" column="item_division"/>
+        <result property="itemCode" column="item_code"/>
+        <result property="itemName" column="item_name"/>
+        <result property="unit" column="unit"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="count" column="count"/>
+    </resultMap>
+
+    <select id="findDailySummaryByChildId" resultMap="itemSummaryResultMap">
+        SELECT
+            i.cc_di_seq AS item_id,
+            i.cc_di_div AS item_division,
+            i.cc_di_code AS item_code,
+            i.cc_di_name AS item_name,
+            i.cc_di_unit AS unit,
+            SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)) AS total_amount,
+            COUNT(*) AS count
+        FROM child_diary d
+        JOIN cc_diary_item i ON d.cc_di_seq = i.cc_di_seq
+        WHERE d.ch_seq = #{childId}
+          AND d.di_date = #{diDate}
+          AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
+        ORDER BY i.cc_di_seq
+    </select>
+
+    <select id="findDailySummaryByDivision" resultMap="itemSummaryResultMap">
+        SELECT
+            i.cc_di_seq AS item_id,
+            i.cc_di_div AS item_division,
+            i.cc_di_code AS item_code,
+            i.cc_di_name AS item_name,
+            i.cc_di_unit AS unit,
+            COALESCE(SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)), 0) AS total_amount,
+            COALESCE(COUNT(d.di_seq), 0) AS count
+        FROM cc_diary_item i
+        LEFT JOIN child_diary d ON i.cc_di_seq = d.cc_di_seq
+            AND d.ch_seq = #{childId}
+            AND d.di_date = #{diDate}
+            AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        WHERE i.cc_di_div = #{division}
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
+        ORDER BY i.cc_di_seq
+    </select>
+
+    <!-- CcDiaryItem 관련 쿼리 -->
+    <select id="findAllActiveItems" resultMap="ccDiaryItemResultMap">
+        SELECT *
+        FROM cc_diary_item
+        WHERE delete_yn IS NULL OR delete_yn != 'Y'
+    </select>
+
+    <select id="findActiveItemsByDivision" resultMap="ccDiaryItemResultMap">
+        SELECT *
+        FROM cc_diary_item
+        WHERE cc_di_div = #{division}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </select>
+
+</mapper>
