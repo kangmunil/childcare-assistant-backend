@@ -56,6 +56,55 @@
           AND (delete_yn IS NULL OR delete_yn != 'Y')
     </select>
 
+    <!-- 일지 요약 (항목별 합계) -->
+    <resultMap id="itemSummaryResultMap" type="com.childcare.domain.diary.dto.DiarySummaryDto$ItemSummary">
+        <result property="itemId" column="item_id"/>
+        <result property="itemDivision" column="item_division"/>
+        <result property="itemCode" column="item_code"/>
+        <result property="itemName" column="item_name"/>
+        <result property="unit" column="unit"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="count" column="count"/>
+    </resultMap>
+
+    <select id="findDailySummaryByChildId" resultMap="itemSummaryResultMap">
+        SELECT
+            i.cc_di_seq AS item_id,
+            i.cc_di_div AS item_division,
+            i.cc_di_code AS item_code,
+            i.cc_di_name AS item_name,
+            i.cc_di_unit AS unit,
+            SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)) AS total_amount,
+            COUNT(*) AS count
+        FROM child_diary d
+        JOIN cc_diary_item i ON d.cc_di_seq = i.cc_di_seq
+        WHERE d.ch_seq = #{childId}
+          AND d.di_date = #{diDate}
+          AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
+        ORDER BY i.cc_di_seq
+    </select>
+
+    <select id="findDailySummaryByDivision" resultMap="itemSummaryResultMap">
+        SELECT
+            i.cc_di_seq AS item_id,
+            i.cc_di_div AS item_division,
+            i.cc_di_code AS item_code,
+            i.cc_di_name AS item_name,
+            i.cc_di_unit AS unit,
+            COALESCE(SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)), 0) AS total_amount,
+            COALESCE(COUNT(d.di_seq), 0) AS count
+        FROM cc_diary_item i
+        LEFT JOIN child_diary d ON i.cc_di_seq = d.cc_di_seq
+            AND d.ch_seq = #{childId}
+            AND d.di_date = #{diDate}
+            AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        WHERE i.cc_di_div = #{division}
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
+        ORDER BY i.cc_di_seq
+    </select>
+
     <!-- CcDiaryItem 관련 쿼리 -->
     <select id="findAllActiveItems" resultMap="ccDiaryItemResultMap">
         SELECT *

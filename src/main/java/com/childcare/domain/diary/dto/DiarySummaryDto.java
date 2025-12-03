@@ -11,27 +11,22 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChildDiaryResponse {
-
-    private String status;
-    private String code;
-    private String message;
-    private List<ChildDiaryDto> data;
+public class DiarySummaryDto {
+    private Long childId;
+    private String date;
+    private List<ItemSummary> items;
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ChildDiaryDto {
-        private Long id;
-        private Long childId;
+    public static class ItemSummary {
         private Long itemId;
         private String itemDivision;
         private String itemCode;
         private String itemName;
-        private String diDate;
-        private String diTime;
-        private String amount;
-        private String memo;
+        private String unit;
+        private Double totalAmount;
+        private Integer count;
     }
 }

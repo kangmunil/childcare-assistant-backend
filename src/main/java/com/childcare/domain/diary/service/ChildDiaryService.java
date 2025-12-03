@@ -1,18 +1,25 @@
 package com.childcare.domain.diary.service;
 
+import com.childcare.domain.child.entity.Child;
+import com.childcare.domain.child.mapper.ChildMapper;
+import com.childcare.domain.diary.dto.ChildDiaryDto;
 import com.childcare.domain.diary.dto.ChildDiaryRequest;
-import com.childcare.domain.diary.dto.ChildDiaryResponse;
+import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
 import com.childcare.domain.diary.mapper.DiaryMapper;
 import com.childcare.domain.diary.repository.CcDiaryItemRepository;
 import com.childcare.domain.diary.repository.ChildDiaryRepository;
+import com.childcare.global.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -27,46 +34,38 @@ public class ChildDiaryService {
     private final ChildDiaryRepository childDiaryRepository;
     private final CcDiaryItemRepository ccDiaryItemRepository;
     private final DiaryMapper diaryMapper;
+    private final ChildMapper childMapper;
 
-    public ChildDiaryResponse getDiariesByChild(Long childId) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(Long childId) {
         log.info("Fetching diaries for child: {}", childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildId(childId);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
 
-        List<ChildDiaryResponse.ChildDiaryDto> diaryDtos = diaries.stream()
+        List<ChildDiaryDto> diaryDtos = diaries.stream()
                 .map(diary -> toDto(diary, itemMap.get(diary.getCcDiSeq())))
                 .collect(Collectors.toList());
 
-        return ChildDiaryResponse.builder()
-                .status("success")
-                .message("성장일지 조회 성공")
-                .data(diaryDtos)
-                .build();
+        return ApiResponse.success("성장일지 조회 성공", diaryDtos);
     }
 
-    public ChildDiaryResponse getDiariesByChildAndDate(Long childId, String date) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(Long childId, String date) {
         log.info("Fetching diaries for child: {} on date: {}", childId, date);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildIdAndDate(childId, date);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
 
-        List<ChildDiaryResponse.ChildDiaryDto> diaryDtos = diaries.stream()
+        List<ChildDiaryDto> diaryDtos = diaries.stream()
                 .map(diary -> toDto(diary, itemMap.get(diary.getCcDiSeq())))
                 .collect(Collectors.toList());
 
-        return ChildDiaryResponse.builder()
-                .status("success")
-                .message("성장일지 조회 성공")
-                .data(diaryDtos)
-                .build();
+        return ApiResponse.success("성장일지 조회 성공", diaryDtos);
     }
 
     @Transactional
-    public ChildDiaryResponse createDiary(Long memberSeq, Long childId, ChildDiaryRequest request) {
+    public ApiResponse<List<ChildDiaryDto>> createDiary(Long memberSeq, Long childId, ChildDiaryRequest request) {
         log.info("Creating diary for child: {}", childId);
 
-        // 필수값 검증
         if (request.getItemId() == null) {
             throw new IllegalArgumentException("항목은 필수 입력값입니다.");
         }
@@ -77,7 +76,6 @@ public class ChildDiaryService {
             throw new IllegalArgumentException("시간은 필수 입력값입니다.");
         }
 
-        // 항목 존재 여부 확인
         CcDiaryItem item = ccDiaryItemRepository.findById(request.getItemId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 항목입니다."));
 
@@ -95,15 +93,11 @@ public class ChildDiaryService {
 
         ChildDiary savedDiary = childDiaryRepository.save(diary);
 
-        return ChildDiaryResponse.builder()
-                .status("success")
-                .message("성장일지 등록 성공")
-                .data(List.of(toDto(savedDiary, item)))
-                .build();
+        return ApiResponse.success("성장일지 등록 성공", List.of(toDto(savedDiary, item)));
     }
 
     @Transactional
-    public ChildDiaryResponse updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
+    public ApiResponse<List<ChildDiaryDto>> updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
         log.info("Updating diary {} for child: {}", diaryId, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
@@ -113,7 +107,6 @@ public class ChildDiaryService {
             throw new IllegalArgumentException("해당 자녀의 성장일지가 아닙니다.");
         }
 
-        // 항목 변경 시 존재 여부 확인
         CcDiaryItem item;
         if (request.getItemId() != null) {
             item = ccDiaryItemRepository.findById(request.getItemId())
@@ -135,15 +128,11 @@ public class ChildDiaryService {
 
         ChildDiary updatedDiary = childDiaryRepository.save(diary);
 
-        return ChildDiaryResponse.builder()
-                .status("success")
-                .message("성장일지 수정 성공")
-                .data(List.of(toDto(updatedDiary, item)))
-                .build();
+        return ApiResponse.success("성장일지 수정 성공", List.of(toDto(updatedDiary, item)));
     }
 
     @Transactional
-    public ChildDiaryResponse deleteDiary(Long memberSeq, Long childId, Long diaryId) {
+    public ApiResponse<Void> deleteDiary(Long memberSeq, Long childId, Long diaryId) {
         log.info("Deleting diary {} for child: {}", diaryId, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
@@ -159,11 +148,48 @@ public class ChildDiaryService {
 
         childDiaryRepository.save(diary);
 
-        return ChildDiaryResponse.builder()
-                .status("success")
-                .message("성장일지 삭제 성공")
-                .data(null)
+        return ApiResponse.success("성장일지 삭제 성공", null);
+    }
+
+    public ApiResponse<DiarySummaryDto> getDailySummary(Long childId, String date) {
+        log.info("Fetching daily summary for child: {} on date: {}", childId, date);
+
+        // 자녀 정보 조회
+        Child child = childMapper.findActiveChildById(childId)
+                .orElseThrow(() -> new IllegalArgumentException("자녀를 찾을 수 없습니다."));
+
+        // 개월수 계산
+        int months = calculateMonths(child.getBirthDay());
+        String division = months < 12 ? "newborn" : "infant";
+
+        log.info("Child {} is {} months old, using division: {}", childId, months, division);
+
+        // 해당 division의 모든 항목 조회 (기록이 없으면 0으로 표시)
+        List<DiarySummaryDto.ItemSummary> items = diaryMapper.findDailySummaryByDivision(childId, date, division);
+
+        DiarySummaryDto data = DiarySummaryDto.builder()
+                .childId(childId)
+                .date(date)
+                .items(items)
                 .build();
+
+        return ApiResponse.success("일지 요약 조회 성공", data);
+    }
+
+    private int calculateMonths(String birthDay) {
+        if (birthDay == null || birthDay.isBlank()) {
+            return 0;
+        }
+
+        try {
+            LocalDate birth = LocalDate.parse(birthDay, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            LocalDate now = LocalDate.now();
+            Period period = Period.between(birth, now);
+            return period.getYears() * 12 + period.getMonths();
+        } catch (Exception e) {
+            log.warn("Failed to parse birth day: {}", birthDay, e);
+            return 0;
+        }
     }
 
     private Map<Long, CcDiaryItem> getItemMap() {
@@ -171,8 +197,8 @@ public class ChildDiaryService {
                 .collect(Collectors.toMap(CcDiaryItem::getCcDiSeq, Function.identity()));
     }
 
-    private ChildDiaryResponse.ChildDiaryDto toDto(ChildDiary diary, CcDiaryItem item) {
-        return ChildDiaryResponse.ChildDiaryDto.builder()
+    private ChildDiaryDto toDto(ChildDiary diary, CcDiaryItem item) {
+        return ChildDiaryDto.builder()
                 .id(diary.getDiSeq())
                 .childId(diary.getChSeq())
                 .itemId(diary.getCcDiSeq())

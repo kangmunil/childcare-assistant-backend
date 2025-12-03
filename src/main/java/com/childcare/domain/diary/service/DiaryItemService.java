@@ -1,8 +1,9 @@
 package com.childcare.domain.diary.service;
 
-import com.childcare.domain.diary.dto.DiaryItemResponse;
+import com.childcare.domain.diary.dto.DiaryItemDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.mapper.DiaryMapper;
+import com.childcare.global.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,40 +20,32 @@ public class DiaryItemService {
 
     private final DiaryMapper diaryMapper;
 
-    public DiaryItemResponse getAllItems() {
+    public ApiResponse<List<DiaryItemDto>> getAllItems() {
         log.info("Fetching all diary items");
 
         List<CcDiaryItem> items = diaryMapper.findAllActiveItems();
 
-        List<DiaryItemResponse.DiaryItemDto> itemDtos = items.stream()
+        List<DiaryItemDto> itemDtos = items.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
 
-        return DiaryItemResponse.builder()
-                .status("success")
-                .message("일지 항목 조회 성공")
-                .data(itemDtos)
-                .build();
+        return ApiResponse.success("일지 항목 조회 성공", itemDtos);
     }
 
-    public DiaryItemResponse getItemsByDivision(String division) {
+    public ApiResponse<List<DiaryItemDto>> getItemsByDivision(String division) {
         log.info("Fetching diary items by division: {}", division);
 
         List<CcDiaryItem> items = diaryMapper.findActiveItemsByDivision(division);
 
-        List<DiaryItemResponse.DiaryItemDto> itemDtos = items.stream()
+        List<DiaryItemDto> itemDtos = items.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
 
-        return DiaryItemResponse.builder()
-                .status("success")
-                .message("일지 항목 조회 성공")
-                .data(itemDtos)
-                .build();
+        return ApiResponse.success("일지 항목 조회 성공", itemDtos);
     }
 
-    private DiaryItemResponse.DiaryItemDto toDto(CcDiaryItem item) {
-        return DiaryItemResponse.DiaryItemDto.builder()
+    private DiaryItemDto toDto(CcDiaryItem item) {
+        return DiaryItemDto.builder()
                 .id(item.getCcDiSeq())
                 .division(item.getCcDiDiv())
                 .code(item.getCcDiCode())

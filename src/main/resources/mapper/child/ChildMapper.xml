@@ -28,4 +28,11 @@
           AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
     </select>
 
+    <select id="findActiveChildById" resultMap="childResultMap">
+        SELECT *
+        FROM child
+        WHERE ch_seq = #{childId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </select>
+
 </mapper>

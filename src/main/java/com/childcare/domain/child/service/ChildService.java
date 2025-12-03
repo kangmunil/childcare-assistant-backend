@@ -1,12 +1,13 @@
 package com.childcare.domain.child.service;
 
+import com.childcare.domain.child.dto.ChildDto;
 import com.childcare.domain.child.dto.ChildRequest;
-import com.childcare.domain.child.dto.ChildResponse;
 import com.childcare.domain.child.entity.Child;
 import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.child.repository.ChildRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
+import com.childcare.global.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,27 +27,22 @@ public class ChildService {
     private final ParentRepository parentRepository;
     private final ChildMapper childMapper;
 
-    public ChildResponse getChildrenByMemberSeq(Long memberSeq) {
+    public ApiResponse<List<ChildDto>> getChildrenByMemberSeq(Long memberSeq) {
         log.info("Fetching children for member: {}", memberSeq);
 
         List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
 
-        List<ChildResponse.ChildDto> childDtos = children.stream()
+        List<ChildDto> childDtos = children.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
 
-        return ChildResponse.builder()
-                .status("success")
-                .message("자녀 목록 조회 성공")
-                .data(childDtos)
-                .build();
+        return ApiResponse.success("자녀 목록 조회 성공", childDtos);
     }
 
     @Transactional
-    public ChildResponse createChild(Long memberSeq, ChildRequest request) {
+    public ApiResponse<List<ChildDto>> createChild(Long memberSeq, ChildRequest request) {
         log.info("Creating child for member: {}", memberSeq);
 
-        // 필수값 검증
         if (request.getName() == null || request.getName().isBlank()) {
             throw new IllegalArgumentException("이름은 필수 입력값입니다.");
         }
@@ -80,15 +76,11 @@ public class ChildService {
 
         parentRepository.save(parent);
 
-        return ChildResponse.builder()
-                .status("success")
-                .message("자녀 등록 성공")
-                .data(List.of(toDto(savedChild)))
-                .build();
+        return ApiResponse.success("자녀 등록 성공", List.of(toDto(savedChild)));
     }
 
     @Transactional
-    public ChildResponse updateChild(Long memberSeq, Long childId, ChildRequest request) {
+    public ApiResponse<List<ChildDto>> updateChild(Long memberSeq, Long childId, ChildRequest request) {
         log.info("Updating child {} for member: {}", childId, memberSeq);
 
         Child child = childRepository.findById(childId)
@@ -108,15 +100,11 @@ public class ChildService {
 
         Child updatedChild = childRepository.save(child);
 
-        return ChildResponse.builder()
-                .status("success")
-                .message("자녀 정보 수정 성공")
-                .data(List.of(toDto(updatedChild)))
-                .build();
+        return ApiResponse.success("자녀 정보 수정 성공", List.of(toDto(updatedChild)));
     }
 
     @Transactional
-    public ChildResponse deleteChild(Long memberSeq, Long childId) {
+    public ApiResponse<Void> deleteChild(Long memberSeq, Long childId) {
         log.info("Deleting child {} for member: {}", childId, memberSeq);
 
         Child child = childRepository.findById(childId)
@@ -132,21 +120,14 @@ public class ChildService {
 
         childRepository.save(child);
 
-        return ChildResponse.builder()
-                .status("success")
-                .message("자녀 정보 삭제 성공")
-                .data(null)
-                .build();
+        return ApiResponse.success("자녀 정보 삭제 성공", null);
     }
 
-    private ChildResponse.ChildDto toDto(Child child) {
-        // gender 변환: M -> male, F -> female
+    private ChildDto toDto(Child child) {
         String genderStr = "M".equals(child.getGender()) ? "male" : "female";
-
-        // 프로필 이미지 URL 생성 (이름 기반 아바타)
         String photoUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + child.getName();
 
-        return ChildResponse.ChildDto.builder()
+        return ChildDto.builder()
                 .id(child.getChSeq())
                 .name(child.getName())
                 .birthDate(child.getBirthDay())
