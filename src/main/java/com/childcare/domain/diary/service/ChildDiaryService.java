@@ -11,6 +11,7 @@ import com.childcare.domain.diary.mapper.DiaryMapper;
 import com.childcare.domain.diary.repository.CcDiaryItemRepository;
 import com.childcare.domain.diary.repository.ChildDiaryRepository;
 import com.childcare.global.dto.ApiResponse;
+import com.childcare.global.service.ChildAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,9 +36,11 @@ public class ChildDiaryService {
     private final CcDiaryItemRepository ccDiaryItemRepository;
     private final DiaryMapper diaryMapper;
     private final ChildMapper childMapper;
+    private final ChildAccessValidator childAccessValidator;
 
-    public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(Long childId) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(Long memberSeq, Long childId) {
         log.info("Fetching diaries for child: {}", childId);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildId(childId);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -49,8 +52,9 @@ public class ChildDiaryService {
         return ApiResponse.success("성장일지 조회 성공", diaryDtos);
     }
 
-    public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(Long childId, String date) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(Long memberSeq, Long childId, String date) {
         log.info("Fetching diaries for child: {} on date: {}", childId, date);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildIdAndDate(childId, date);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -65,6 +69,7 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<List<ChildDiaryDto>> createDiary(Long memberSeq, Long childId, ChildDiaryRequest request) {
         log.info("Creating diary for child: {}", childId);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
         if (request.getItemId() == null) {
             throw new IllegalArgumentException("항목은 필수 입력값입니다.");
@@ -99,13 +104,10 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<List<ChildDiaryDto>> updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
         log.info("Updating diary {} for child: {}", diaryId, childId);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
-        ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
+        ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
-
-        if (!diary.getChSeq().equals(childId)) {
-            throw new IllegalArgumentException("해당 자녀의 성장일지가 아닙니다.");
-        }
 
         CcDiaryItem item;
         if (request.getItemId() != null) {
@@ -134,13 +136,10 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<Void> deleteDiary(Long memberSeq, Long childId, Long diaryId) {
         log.info("Deleting diary {} for child: {}", diaryId, childId);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
-        ChildDiary diary = diaryMapper.findActiveDiaryById(diaryId)
+        ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
-
-        if (!diary.getChSeq().equals(childId)) {
-            throw new IllegalArgumentException("해당 자녀의 성장일지가 아닙니다.");
-        }
 
         diary.setDeleteYn("Y");
         diary.setDeleteUserSeq(String.valueOf(memberSeq));
@@ -151,8 +150,9 @@ public class ChildDiaryService {
         return ApiResponse.success("성장일지 삭제 성공", null);
     }
 
-    public ApiResponse<DiarySummaryDto> getDailySummary(Long childId, String date) {
+    public ApiResponse<DiarySummaryDto> getDailySummary(Long memberSeq, Long childId, String date) {
         log.info("Fetching daily summary for child: {} on date: {}", childId, date);
+        childAccessValidator.validateAccess(memberSeq, childId);
 
         // 자녀 정보 조회
         Child child = childMapper.findActiveChildById(childId)

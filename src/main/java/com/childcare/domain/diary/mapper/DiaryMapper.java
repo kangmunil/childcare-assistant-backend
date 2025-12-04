@@ -17,7 +17,7 @@ public interface DiaryMapper {
 
     List<ChildDiary> findDiariesByChildIdAndDate(@Param("childId") Long childId, @Param("diDate") String diDate);
 
-    Optional<ChildDiary> findActiveDiaryById(@Param("diSeq") Long diSeq);
+    Optional<ChildDiary> findActiveDiaryById(@Param("childId") Long childId, @Param("diSeq") Long diSeq);
 
     // 일지 요약 (항목별 합계)
     List<DiarySummaryDto.ItemSummary> findDailySummaryByChildId(@Param("childId") Long childId, @Param("diDate") String diDate);

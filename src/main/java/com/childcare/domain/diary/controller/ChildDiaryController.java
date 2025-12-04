@@ -26,44 +26,27 @@ public class ChildDiaryController {
     public ResponseEntity<ApiResponse<List<ChildDiaryDto>>> getDiaries(
             @PathVariable Long childId,
             @RequestParam(required = false) String date) {
-        try {
-            log.info("Get diaries request for child: {}, date: {}", childId, date);
+        Long memberSeq = getMemberSeq();
+        log.info("Get diaries request for child: {}, date: {}", childId, date);
 
-            ApiResponse<List<ChildDiaryDto>> response;
-            if (date != null && !date.isBlank()) {
-                response = childDiaryService.getDiariesByChildAndDate(childId, date);
-            } else {
-                response = childDiaryService.getDiariesByChild(childId);
-            }
-            return ResponseEntity.ok(response);
-
-        } catch (IllegalArgumentException e) {
-            log.error("Failed to get diaries - validation error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("DIARY_001", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Failed to get diaries", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_999", "성장일지 조회 실패"));
+        ApiResponse<List<ChildDiaryDto>> response;
+        if (date != null && !date.isBlank()) {
+            response = childDiaryService.getDiariesByChildAndDate(memberSeq, childId, date);
+        } else {
+            response = childDiaryService.getDiariesByChild(memberSeq, childId);
         }
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<List<ChildDiaryDto>>> createDiary(
             @PathVariable Long childId,
             @RequestBody ChildDiaryRequest request) {
-        try {
-            Long memberSeq = getMemberSeq();
-            log.info("Create diary request for child: {}", childId);
+        Long memberSeq = getMemberSeq();
+        log.info("Create diary request for child: {}", childId);
 
-            ApiResponse<List<ChildDiaryDto>> response = childDiaryService.createDiary(memberSeq, childId, request);
-            return ResponseEntity.ok(response);
-
-        } catch (IllegalArgumentException e) {
-            log.error("Failed to create diary - validation error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("DIARY_002", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Failed to create diary", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_999", "성장일지 등록 실패: " + e.getMessage()));
-        }
+        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.createDiary(memberSeq, childId, request);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{diaryId}")
@@ -71,59 +54,33 @@ public class ChildDiaryController {
             @PathVariable Long childId,
             @PathVariable Long diaryId,
             @RequestBody ChildDiaryRequest request) {
-        try {
-            Long memberSeq = getMemberSeq();
-            log.info("Update diary {} request for child: {}", diaryId, childId);
+        Long memberSeq = getMemberSeq();
+        log.info("Update diary {} request for child: {}", diaryId, childId);
 
-            ApiResponse<List<ChildDiaryDto>> response = childDiaryService.updateDiary(memberSeq, childId, diaryId, request);
-            return ResponseEntity.ok(response);
-
-        } catch (IllegalArgumentException e) {
-            log.error("Failed to update diary - validation error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("DIARY_003", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Failed to update diary", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_999", "성장일지 수정 실패"));
-        }
+        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.updateDiary(memberSeq, childId, diaryId, request);
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{diaryId}")
     public ResponseEntity<ApiResponse<Void>> deleteDiary(
             @PathVariable Long childId,
             @PathVariable Long diaryId) {
-        try {
-            Long memberSeq = getMemberSeq();
-            log.info("Delete diary {} request for child: {}", diaryId, childId);
+        Long memberSeq = getMemberSeq();
+        log.info("Delete diary {} request for child: {}", diaryId, childId);
 
-            ApiResponse<Void> response = childDiaryService.deleteDiary(memberSeq, childId, diaryId);
-            return ResponseEntity.ok(response);
-
-        } catch (IllegalArgumentException e) {
-            log.error("Failed to delete diary - validation error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("DIARY_004", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Failed to delete diary", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_999", "성장일지 삭제 실패"));
-        }
+        ApiResponse<Void> response = childDiaryService.deleteDiary(memberSeq, childId, diaryId);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/summary")
     public ResponseEntity<ApiResponse<DiarySummaryDto>> getDailySummary(
             @PathVariable Long childId,
             @RequestParam String date) {
-        try {
-            log.info("Get daily summary request for child: {}, date: {}", childId, date);
+        Long memberSeq = getMemberSeq();
+        log.info("Get daily summary request for child: {}, date: {}", childId, date);
 
-            ApiResponse<DiarySummaryDto> response = childDiaryService.getDailySummary(childId, date);
-            return ResponseEntity.ok(response);
-
-        } catch (IllegalArgumentException e) {
-            log.error("Failed to get daily summary - validation error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("DIARY_005", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Failed to get daily summary", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_999", "일지 요약 조회 실패"));
-        }
+        ApiResponse<DiarySummaryDto> response = childDiaryService.getDailySummary(memberSeq, childId, date);
+        return ResponseEntity.ok(response);
     }
 
     private Long getMemberSeq() {

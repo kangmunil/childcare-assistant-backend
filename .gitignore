@@ -36,6 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Project Docs (local only) ###
+docs/
+
 ### Logs ###
 logs/
 *.log

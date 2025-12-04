@@ -20,20 +20,14 @@ public class DiaryItemController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<DiaryItemDto>>> getAllItems(@RequestParam(required = false) String division) {
-        try {
-            log.info("Get diary items request, division: {}", division);
+        log.info("Get diary items request, division: {}", division);
 
-            ApiResponse<List<DiaryItemDto>> response;
-            if (division != null && !division.isBlank()) {
-                response = diaryItemService.getItemsByDivision(division);
-            } else {
-                response = diaryItemService.getAllItems();
-            }
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Failed to get diary items", e);
-            return ResponseEntity.internalServerError().body(ApiResponse.error("DIARY_ITEM_999", "일지 항목 조회 실패"));
+        ApiResponse<List<DiaryItemDto>> response;
+        if (division != null && !division.isBlank()) {
+            response = diaryItemService.getItemsByDivision(division);
+        } else {
+            response = diaryItemService.getAllItems();
         }
+        return ResponseEntity.ok(response);
     }
 }

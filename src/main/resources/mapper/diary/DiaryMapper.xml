@@ -31,29 +31,46 @@
         <result property="deleteDate" column="delete_date"/>
     </resultMap>
 
+    <sql id="FromDiary">
+        <![CDATA[
+        FROM child c
+        JOIN child_diary d on c.ch_seq = d.ch_seq AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+          AND c.ch_seq = ${childId}
+        ]]>
+    </sql>
+
+    <sql id="orderByDiary">
+        <![CDATA[
+        ORDER BY d.di_date DESC, d.di_time DESC
+        ]]>
+    </sql>
+
     <!-- ChildDiary 관련 쿼리 -->
     <select id="findDiariesByChildId" resultMap="childDiaryResultMap">
-        SELECT *
-        FROM child_diary
-        WHERE ch_seq = #{childId}
-          AND (delete_yn IS NULL OR delete_yn != 'Y')
-        ORDER BY di_date DESC, di_time DESC
+        SELECT d.*
+        <include refid="FromDiary">
+            <property name="childId" value="#{childId}"/>
+        </include>
+        <include refid="orderByDiary"></include>
     </select>
 
     <select id="findDiariesByChildIdAndDate" resultMap="childDiaryResultMap">
-        SELECT *
-        FROM child_diary
-        WHERE ch_seq = #{childId}
-          AND di_date = #{diDate}
-          AND (delete_yn IS NULL OR delete_yn != 'Y')
-        ORDER BY di_time DESC
+        SELECT d.*
+        <include refid="FromDiary">
+            <property name="childId" value="#{childId}"/>
+        </include>
+        AND d.di_date = #{diDate}
+        <include refid="orderByDiary"></include>
     </select>
 
     <select id="findActiveDiaryById" resultMap="childDiaryResultMap">
-        SELECT *
-        FROM child_diary
-        WHERE di_seq = #{diSeq}
-          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        SELECT d.*
+        <include refid="FromDiary">
+            <property name="childId" value="#{childId}"/>
+        </include>
+        AND d.di_seq = #{diSeq}
+        <include refid="orderByDiary"></include>
     </select>
 
     <!-- 일지 요약 (항목별 합계) -->
@@ -67,6 +84,16 @@
         <result property="count" column="count"/>
     </resultMap>
 
+    <sql id="FromDiaryJoinItem">
+        <![CDATA[
+        FROM child c
+        JOIN child_diary d on c.ch_seq = d.ch_seq AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        JOIN cc_diary_item i ON d.cc_di_seq = i.cc_di_seq
+        WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+          AND c.ch_seq = ${childId}
+        ]]>
+    </sql>
+
     <select id="findDailySummaryByChildId" resultMap="itemSummaryResultMap">
         SELECT
             i.cc_di_seq AS item_id,
@@ -76,11 +103,10 @@
             i.cc_di_unit AS unit,
             SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)) AS total_amount,
             COUNT(*) AS count
-        FROM child_diary d
-        JOIN cc_diary_item i ON d.cc_di_seq = i.cc_di_seq
-        WHERE d.ch_seq = #{childId}
+        <include refid="FromDiaryJoinItem">
+            <property name="childId" value="#{childId}"/>
+        </include>
           AND d.di_date = #{diDate}
-          AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
         GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
         ORDER BY i.cc_di_seq
     </select>
@@ -95,28 +121,38 @@
             COALESCE(SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)), 0) AS total_amount,
             COALESCE(COUNT(d.di_seq), 0) AS count
         FROM cc_diary_item i
-        LEFT JOIN child_diary d ON i.cc_di_seq = d.cc_di_seq
-            AND d.ch_seq = #{childId}
-            AND d.di_date = #{diDate}
-            AND (d.delete_yn IS NULL OR d.delete_yn != 'Y')
+        LEFT JOIN (
+                SELECT d.*
+                <include refid="FromDiary">
+                    <property name="childId" value="#{childId}"/>
+                </include>
+                  AND d.di_date = #{diDate}
+            ) d ON i.cc_di_seq = d.cc_di_seq
         WHERE i.cc_di_div = #{division}
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
         GROUP BY i.cc_di_seq, i.cc_di_div, i.cc_di_code, i.cc_di_name, i.cc_di_unit
         ORDER BY i.cc_di_seq
     </select>
 
+    <sql id="FromItem">
+        <![CDATA[
+        FROM cc_diary_item
+        WHERE delete_yn IS NULL OR delete_yn != 'Y'
+        ]]>
+    </sql>
+
     <!-- CcDiaryItem 관련 쿼리 -->
     <select id="findAllActiveItems" resultMap="ccDiaryItemResultMap">
         SELECT *
-        FROM cc_diary_item
-        WHERE delete_yn IS NULL OR delete_yn != 'Y'
+        <include refid="FromItem"></include>
+        ORDER BY cc_di_seq
     </select>
 
     <select id="findActiveItemsByDivision" resultMap="ccDiaryItemResultMap">
         SELECT *
-        FROM cc_diary_item
-        WHERE cc_di_div = #{division}
-          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        <include refid="FromItem"></include>
+          AND cc_di_div = #{division}
+        ORDER BY cc_di_seq
     </select>
 
 </mapper>
