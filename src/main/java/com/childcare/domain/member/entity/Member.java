@@ -57,7 +57,18 @@ public class Member {
     
     @Column(name = "leave_date")
     private LocalDateTime leaveDate;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    @Builder.Default
+    private Role role = Role.USER;
+
+    @Column(name = "invite_code", unique = true)
+    private String inviteCode;
+
+    @Column(name = "invited_by")
+    private Long invitedBy;
+
     @CreatedDate
     @Column(name = "reg_date", nullable = false, updatable = false)
     private LocalDateTime regDate;

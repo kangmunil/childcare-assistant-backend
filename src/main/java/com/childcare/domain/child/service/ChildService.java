@@ -8,6 +8,8 @@ import com.childcare.domain.child.repository.ChildRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
 import com.childcare.global.dto.ApiResponse;
+import com.childcare.global.exception.ChildException;
+import com.childcare.global.exception.ChildException.ChildErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,18 +41,36 @@ public class ChildService {
         return ApiResponse.success("자녀 목록 조회 성공", childDtos);
     }
 
+    public ApiResponse<ChildDto> getChildById(Long memberSeq, Long childId) {
+        log.info("Fetching child {} for member: {}", childId, memberSeq);
+
+        // 해당 회원의 자녀인지 확인
+        List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
+        boolean hasAccess = children.stream()
+                .anyMatch(c -> c.getChSeq().equals(childId));
+
+        if (!hasAccess) {
+            throw new ChildException(ChildErrorCode.NOT_FOUND);
+        }
+
+        Child child = childMapper.findActiveChildById(childId)
+                .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
+
+        return ApiResponse.success("자녀 정보 조회 성공", toDto(child));
+    }
+
     @Transactional
     public ApiResponse<List<ChildDto>> createChild(Long memberSeq, ChildRequest request) {
         log.info("Creating child for member: {}", memberSeq);
 
         if (request.getName() == null || request.getName().isBlank()) {
-            throw new IllegalArgumentException("이름은 필수 입력값입니다.");
+            throw new ChildException(ChildErrorCode.NAME_REQUIRED);
         }
         if (request.getBirthDay() == null || request.getBirthDay().isBlank()) {
-            throw new IllegalArgumentException("생년월일은 필수 입력값입니다.");
+            throw new ChildException(ChildErrorCode.BIRTHDAY_REQUIRED);
         }
         if (request.getBirthTime() == null || request.getBirthTime().isBlank()) {
-            throw new IllegalArgumentException("태어난 시각은 필수 입력값입니다.");
+            throw new ChildException(ChildErrorCode.BIRTHTIME_REQUIRED);
         }
 
         Child child = Child.builder()
@@ -84,10 +104,10 @@ public class ChildService {
         log.info("Updating child {} for member: {}", childId, memberSeq);
 
         Child child = childRepository.findById(childId)
-                .orElseThrow(() -> new IllegalArgumentException("자녀 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
         if ("Y".equals(child.getDeleteYn())) {
-            throw new IllegalArgumentException("삭제된 자녀 정보입니다.");
+            throw new ChildException(ChildErrorCode.ALREADY_DELETED);
         }
 
         child.setName(request.getName());
@@ -108,10 +128,10 @@ public class ChildService {
         log.info("Deleting child {} for member: {}", childId, memberSeq);
 
         Child child = childRepository.findById(childId)
-                .orElseThrow(() -> new IllegalArgumentException("자녀 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
         if ("Y".equals(child.getDeleteYn())) {
-            throw new IllegalArgumentException("이미 삭제된 자녀 정보입니다.");
+            throw new ChildException(ChildErrorCode.ALREADY_DELETED);
         }
 
         child.setDeleteYn("Y");

@@ -11,10 +11,40 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedException(UnauthorizedException e) {
+        log.error("Unauthorized: {}", e.getMessage());
+        return ResponseEntity.status(401).body(ApiResponse.error("AUTH_001", e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthException(AuthException e) {
+        log.error("Auth error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
     @ExceptionHandler(ChildAccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleChildAccessDeniedException(ChildAccessDeniedException e) {
         log.error("Access denied: {}", e.getMessage());
         return ResponseEntity.status(403).body(ApiResponse.error("ACCESS_001", e.getMessage()));
+    }
+
+    @ExceptionHandler(ChildException.class)
+    public ResponseEntity<ApiResponse<Void>> handleChildException(ChildException e) {
+        log.error("Child error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(DiaryException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDiaryException(DiaryException e) {
+        log.error("Diary error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(CalendarException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCalendarException(CalendarException e) {
+        log.error("Calendar error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

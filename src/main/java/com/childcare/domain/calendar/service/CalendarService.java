@@ -6,6 +6,8 @@ import com.childcare.domain.calendar.entity.Calendar;
 import com.childcare.domain.calendar.mapper.CalendarMapper;
 import com.childcare.domain.calendar.repository.CalendarRepository;
 import com.childcare.global.dto.ApiResponse;
+import com.childcare.global.exception.CalendarException;
+import com.childcare.global.exception.CalendarException.CalendarErrorCode;
 import com.childcare.global.service.ChildAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,13 +73,13 @@ public class CalendarService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         if (request.getTitle() == null || request.getTitle().isBlank()) {
-            throw new IllegalArgumentException("일정명은 필수 입력값입니다.");
+            throw new CalendarException(CalendarErrorCode.TITLE_REQUIRED);
         }
         if (request.getCaDate() == null || request.getCaDate().isBlank()) {
-            throw new IllegalArgumentException("날짜는 필수 입력값입니다.");
+            throw new CalendarException(CalendarErrorCode.DATE_REQUIRED);
         }
         if (request.getCaTime() == null || request.getCaTime().isBlank()) {
-            throw new IllegalArgumentException("시간은 필수 입력값입니다.");
+            throw new CalendarException(CalendarErrorCode.TIME_REQUIRED);
         }
 
         Calendar calendar = Calendar.builder()
@@ -103,7 +105,7 @@ public class CalendarService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             calendar.setTitle(request.getTitle());
@@ -127,7 +129,7 @@ public class CalendarService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
 
         calendar.setDeleteYn("Y");
         calendar.setDeleteUserSeq(String.valueOf(memberSeq));

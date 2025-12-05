@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,8 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                    HttpServletResponse response, 
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
         try {
@@ -45,20 +47,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (token != null && jwtUtil.validateToken(token)) {
                 Long userId = jwtUtil.getUserIdFromToken(token);
                 String email = jwtUtil.getEmailFromToken(token);
+                String role = jwtUtil.getRoleFromToken(token);
+
+                // role이 없으면 기본값 USER
+                if (role == null || role.isEmpty()) {
+                    role = "USER";
+                }
+
+                List<SimpleGrantedAuthority> authorities =
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
 
                 UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
+                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
                 authentication.setDetails(email);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
-                throw new JwtException("access token is null");
+                sendAuthError(response, "인증이 필요합니다.");
+                return;
             }
         } catch(JwtException ex) {
             logger.info("Failed to authorize/authenticate with JWT due to " + ex.getMessage());
+            sendAuthError(response, "유효하지 않은 토큰입니다.");
+            return;
         }
-        
+
         filterChain.doFilter(request, response);
+    }
+
+    private void sendAuthError(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"status\":\"error\",\"code\":\"AUTH_001\",\"message\":\"" + message + "\",\"data\":null}");
     }
     
     private String getTokenFromRequest(HttpServletRequest request) {

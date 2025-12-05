@@ -11,6 +11,10 @@ import com.childcare.domain.diary.mapper.DiaryMapper;
 import com.childcare.domain.diary.repository.CcDiaryItemRepository;
 import com.childcare.domain.diary.repository.ChildDiaryRepository;
 import com.childcare.global.dto.ApiResponse;
+import com.childcare.global.exception.ChildException;
+import com.childcare.global.exception.ChildException.ChildErrorCode;
+import com.childcare.global.exception.DiaryException;
+import com.childcare.global.exception.DiaryException.DiaryErrorCode;
 import com.childcare.global.service.ChildAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,17 +76,17 @@ public class ChildDiaryService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         if (request.getItemId() == null) {
-            throw new IllegalArgumentException("항목은 필수 입력값입니다.");
+            throw new DiaryException(DiaryErrorCode.ITEM_REQUIRED);
         }
         if (request.getDiDate() == null || request.getDiDate().isBlank()) {
-            throw new IllegalArgumentException("날짜는 필수 입력값입니다.");
+            throw new DiaryException(DiaryErrorCode.DATE_REQUIRED);
         }
         if (request.getDiTime() == null || request.getDiTime().isBlank()) {
-            throw new IllegalArgumentException("시간은 필수 입력값입니다.");
+            throw new DiaryException(DiaryErrorCode.TIME_REQUIRED);
         }
 
         CcDiaryItem item = ccDiaryItemRepository.findById(request.getItemId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 항목입니다."));
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.ITEM_NOT_FOUND));
 
         ChildDiary diary = ChildDiary.builder()
                 .chSeq(childId)
@@ -107,12 +111,12 @@ public class ChildDiaryService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
-                .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
 
         CcDiaryItem item;
         if (request.getItemId() != null) {
             item = ccDiaryItemRepository.findById(request.getItemId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 항목입니다."));
+                    .orElseThrow(() -> new DiaryException(DiaryErrorCode.ITEM_NOT_FOUND));
             diary.setCcDiSeq(request.getItemId());
         } else {
             item = ccDiaryItemRepository.findById(diary.getCcDiSeq())
@@ -139,7 +143,7 @@ public class ChildDiaryService {
         childAccessValidator.validateAccess(memberSeq, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
-                .orElseThrow(() -> new IllegalArgumentException("성장일지를 찾을 수 없습니다."));
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
 
         diary.setDeleteYn("Y");
         diary.setDeleteUserSeq(String.valueOf(memberSeq));
@@ -156,7 +160,7 @@ public class ChildDiaryService {
 
         // 자녀 정보 조회
         Child child = childMapper.findActiveChildById(childId)
-                .orElseThrow(() -> new IllegalArgumentException("자녀를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
         // 개월수 계산
         int months = calculateMonths(child.getBirthDay());

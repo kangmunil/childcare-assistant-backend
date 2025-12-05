@@ -19,6 +19,7 @@
     </resultMap>
 
     <select id="findActiveChildrenByMemberSeq" resultMap="childResultMap">
+        <![CDATA[
         SELECT c.*
         FROM child c
         JOIN parent p ON c.ch_seq = p.ch_seq
@@ -26,13 +27,16 @@
         WHERE p.mb_seq = #{memberSeq}
           AND m.leave_date IS NULL
           AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+        ]]>
     </select>
 
     <select id="findActiveChildById" resultMap="childResultMap">
+        <![CDATA[
         SELECT *
         FROM child
         WHERE ch_seq = #{childId}
           AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
     </select>
 
 </mapper>

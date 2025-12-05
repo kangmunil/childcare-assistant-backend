@@ -51,31 +51,15 @@ public class AuthController {
     
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            log.info("General login request received for user: {}", request.getId());
-            AuthResponse response = authService.login(request.getId(), request.getPassword());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("General login error", e);
-            AuthResponse errorResponse = AuthResponse.builder()
-                    .status("error")
-                    .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
+        log.info("General login request received for user: {}", request.getId());
+        AuthResponse response = authService.login(request.getId(), request.getPassword());
+        return ResponseEntity.ok(response);
     }
     
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        try {
-            log.info("Registration request received for user: {}", request.getId());
-            AuthResponse response = authService.register(request);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Registration error", e);
-            AuthResponse errorResponse = AuthResponse.builder()
-                    .status("error")
-                    .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
+        log.info("Registration request received for user: {}", request.getId());
+        AuthResponse response = authService.register(request);
+        return ResponseEntity.ok(response);
     }
 }

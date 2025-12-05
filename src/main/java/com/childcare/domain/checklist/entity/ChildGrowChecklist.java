@@ -1,4 +1,4 @@
-package com.childcare.domain.calendar.entity;
+package com.childcare.domain.checklist.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -9,35 +9,27 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "child_calendar")
+@Table(name = "child_grow_checklist")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Calendar {
+public class ChildGrowChecklist {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_calendar_seq")
-    @SequenceGenerator(name = "child_calendar_seq", sequenceName = "child_calendar_ca_seq", allocationSize = 1)
-    @Column(name = "ca_seq")
-    private Long caSeq;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_grow_checklist_seq")
+    @SequenceGenerator(name = "child_grow_checklist_seq", sequenceName = "child_grow_checklist_gc_seq", allocationSize = 1)
+    @Column(name = "gc_seq")
+    private Long gcSeq;
 
     @Column(name = "ch_seq", nullable = false)
     private Long chSeq;
 
-    @Column(name = "title", nullable = false)
-    private String title;
+    @Column(name = "cc_gc_seq", nullable = false)
+    private Long ccGcSeq;
 
-    @Column(name = "ca_date", nullable = false)
-    private String caDate;
-
-    @Column(name = "ca_time", nullable = false)
-    private String caTime;
-
-    @Column(name = "memo")
-    private String memo;
-
-    @Column(name = "reg_ai_yn")
-    private String regAiYn;
+    @Column(name = "gc_date", nullable = false, length = 20)
+    private String gcDate;
 
     @Column(name = "reg_user_seq", nullable = false)
     private Long regUserSeq;
