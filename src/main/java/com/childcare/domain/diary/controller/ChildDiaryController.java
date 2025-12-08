@@ -2,6 +2,7 @@ package com.childcare.domain.diary.controller;
 
 import com.childcare.domain.diary.dto.ChildDiaryDto;
 import com.childcare.domain.diary.dto.ChildDiaryRequest;
+import com.childcare.domain.diary.dto.DiaryStatDto;
 import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.service.ChildDiaryService;
 import com.childcare.global.dto.ApiResponse;
@@ -79,6 +80,25 @@ public class ChildDiaryController {
         log.info("Get daily summary request for child: {}, date: {}", childId, date);
 
         ApiResponse<DiarySummaryDto> response = childDiaryService.getDailySummary(memberSeq, childId, date);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 기간별 일지 통계 조회
+     * GET /children/{childId}/diaries/stats?type=week&startDate=2025-12-01&endDate=2025-12-07
+     * GET /children/{childId}/diaries/stats?type=month&startDate=2025-12-01&endDate=2025-12-31
+     * GET /children/{childId}/diaries/stats?type=year&startDate=2025-01-01&endDate=2025-12-31
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<ApiResponse<DiaryStatDto>> getDiaryStats(
+            @PathVariable Long childId,
+            @RequestParam String type,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        Long memberSeq = getMemberSeq();
+        log.info("Get diary stats request for child: {}, type: {}, from {} to {}", childId, type, startDate, endDate);
+
+        ApiResponse<DiaryStatDto> response = childDiaryService.getDiaryStats(memberSeq, childId, type, startDate, endDate);
         return ResponseEntity.ok(response);
     }
 

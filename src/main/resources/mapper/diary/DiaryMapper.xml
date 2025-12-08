@@ -94,7 +94,7 @@
         ]]>
     </sql>
 
-    <select id="findDailySummaryByChildId" resultMap="itemSummaryResultMap">
+    <select id="findDiarySummaryByChildId" resultMap="itemSummaryResultMap">
         SELECT
             i.cc_di_seq AS item_id,
             i.cc_di_div AS item_division,
@@ -153,6 +153,26 @@
         <include refid="FromItem"></include>
           AND cc_di_div = #{division}
         ORDER BY cc_di_seq
+    </select>
+
+    <!-- 기간별 일지 통계 (주별 그룹핑) -->
+    <resultMap id="DiaryStatResultMap" type="com.childcare.domain.diary.dto.DiaryStatDto$DiaryStat">
+        <result property="week" column="week"/>
+        <result property="itemName" column="item_name"/>
+        <result property="totalAmount" column="total_amount"/>
+    </resultMap>
+
+    <select id="findDiaryStatsByPeriod" resultMap="DiaryStatResultMap">
+        SELECT
+            TO_CHAR(DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
+            i.cc_di_name AS item_name,
+            SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)) AS total_amount
+        <include refid="FromDiaryJoinItem">
+            <property name="childId" value="#{childId}"/>
+        </include>
+          AND d.di_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), d.cc_di_seq, i.cc_di_name
+        ORDER BY week, i.cc_di_name
     </select>
 
 </mapper>

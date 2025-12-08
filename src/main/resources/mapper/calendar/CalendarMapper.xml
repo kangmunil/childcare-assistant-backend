@@ -5,9 +5,14 @@
     <resultMap id="calendarResultMap" type="com.childcare.domain.calendar.entity.Calendar">
         <id property="caSeq" column="ca_seq"/>
         <result property="chSeq" column="ch_seq"/>
+        <result property="div" column="div"/>
         <result property="title" column="title"/>
         <result property="caDate" column="ca_date"/>
         <result property="caTime" column="ca_time"/>
+        <result property="place" column="place"/>
+        <result property="placePostcode" column="place_postcode"/>
+        <result property="placeAddress1" column="place_address1"/>
+        <result property="placeAddress2" column="place_address2"/>
         <result property="memo" column="memo"/>
         <result property="regAiYn" column="reg_ai_yn"/>
         <result property="regUserSeq" column="reg_user_seq"/>

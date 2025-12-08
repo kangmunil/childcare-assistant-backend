@@ -1,6 +1,7 @@
 package com.childcare.global.config;
 
 import com.childcare.global.util.JwtUtil;
+import com.childcare.global.util.JwtUtil.TokenExpiredException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,7 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     private final JwtUtil jwtUtil;
 
-    private final List<String> excludedPaths = Arrays.asList("/api/auth/login","/api/auth/register");
+    private final List<String> excludedPaths = Arrays.asList("/api/auth/", "/api/test/");
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException{
@@ -62,13 +63,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(email);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else if (token != null) {
+                sendAuthError(response, "AUTH_009", "유효하지 않은 토큰입니다.");
+                return;
             } else {
                 sendAuthError(response, "인증이 필요합니다.");
                 return;
             }
+        } catch(TokenExpiredException ex) {
+            logger.info("JWT token is expired: " + ex.getMessage());
+            sendAuthError(response, "AUTH_008", "토큰이 만료되었습니다.");
+            return;
         } catch(JwtException ex) {
             logger.info("Failed to authorize/authenticate with JWT due to " + ex.getMessage());
-            sendAuthError(response, "유효하지 않은 토큰입니다.");
+            sendAuthError(response, "AUTH_009", "유효하지 않은 토큰입니다.");
             return;
         }
 
@@ -76,9 +84,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void sendAuthError(HttpServletResponse response, String message) throws IOException {
+        sendAuthError(response, "AUTH_001", message);
+    }
+
+    private void sendAuthError(HttpServletResponse response, String code, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"status\":\"error\",\"code\":\"AUTH_001\",\"message\":\"" + message + "\",\"data\":null}");
+        response.getWriter().write("{\"status\":\"error\",\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"data\":null}");
     }
     
     private String getTokenFromRequest(HttpServletRequest request) {

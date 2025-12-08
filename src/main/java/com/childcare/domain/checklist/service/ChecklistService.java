@@ -25,7 +25,7 @@ public class ChecklistService {
      */
     public ApiResponse<List<ChecklistDto>> getCheckedChecklists(Long memberSeq, Long childId) {
         log.info("Fetching checked checklists for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<ChecklistDto> checklists = checklistMapper.findCheckedByChildId(childId);
 
@@ -37,7 +37,7 @@ public class ChecklistService {
      */
     public ApiResponse<List<ChecklistDto>> getUncheckedChecklists(Long memberSeq, Long childId) {
         log.info("Fetching unchecked checklists for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<ChecklistDto> checklists = checklistMapper.findUncheckedByChildId(childId);
 

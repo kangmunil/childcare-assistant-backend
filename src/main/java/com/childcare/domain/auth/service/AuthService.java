@@ -6,6 +6,8 @@ import com.childcare.domain.member.entity.MemberOAuth;
 import com.childcare.domain.member.entity.Role;
 import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.domain.member.repository.MemberOAuthRepository;
+import com.childcare.domain.parent.entity.Parent;
+import com.childcare.domain.parent.repository.ParentRepository;
 import com.childcare.global.exception.AuthException;
 import com.childcare.global.exception.AuthException.AuthErrorCode;
 import com.childcare.global.util.InviteCodeGenerator;
@@ -19,6 +21,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +31,7 @@ public class AuthService {
 
     private final MemberRepository memberRepository;
     private final MemberOAuthRepository memberOAuthRepository;
+    private final ParentRepository parentRepository;
     private final JwtUtil jwtUtil;
     private final WebClient webClient;
     private final PasswordEncoder passwordEncoder;
@@ -127,9 +131,10 @@ public class AuthService {
         }
 
         // 추천인 코드 검증 (선택)
+        Member referrer = null;
         Long invitedBy = null;
         if (StringUtils.hasText(request.getReferralCode())) {
-            Member referrer = memberRepository.findByInviteCode(request.getReferralCode())
+            referrer = memberRepository.findByInviteCode(request.getReferralCode())
                     .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_REFERRAL_CODE));
             invitedBy = referrer.getMbSeq();
         }
@@ -141,19 +146,47 @@ public class AuthService {
                 .email(request.getEmail())
                 .phone(request.getPhone())
                 .tel(request.getTel())
+                .postcode(request.getPostcode())
                 .addr1(request.getAddr1())
                 .addr2(request.getAddr2())
-                .addr3(request.getAddr3())
                 .invitedBy(invitedBy)
                 .inviteCode(inviteCodeGenerator.generate())
                 .build();
 
         Member savedMember = memberRepository.save(member);
 
+        // 초대코드로 가입한 경우, 초대한 회원의 자녀 공유
+        if (referrer != null) {
+            shareChildrenWithInvitee(referrer.getMbSeq(), savedMember.getMbSeq());
+        }
+
         String role = savedMember.getRole() != null ? savedMember.getRole().name() : Role.USER.name();
         String token = jwtUtil.generateToken(savedMember.getMbSeq(), savedMember.getEmail(), role);
 
         return buildAuthResponse("회원가입 성공", token, savedMember, null);
+    }
+
+    private void shareChildrenWithInvitee(Long referrerMbSeq, Long inviteeMbSeq) {
+        // 초대한 회원의 자녀 목록 조회
+        List<Parent> referrerChildren = parentRepository.findByMbSeq(referrerMbSeq);
+
+        for (Parent referrerParent : referrerChildren) {
+            // 새 회원에게 자녀 공유 (auth_manage는 0, 나머지는 1)
+            Parent sharedParent = Parent.builder()
+                    .mbSeq(inviteeMbSeq)
+                    .chSeq(referrerParent.getChSeq())
+                    .relation("family")
+                    .authManage("0")
+                    .authRead("1")
+                    .authWrite("1")
+                    .authDelete("1")
+                    .regUserSeq(referrerMbSeq)
+                    .regDate(LocalDateTime.now())
+                    .build();
+
+            parentRepository.save(sharedParent);
+            log.info("Shared child {} with invitee {}", referrerParent.getChSeq(), inviteeMbSeq);
+        }
     }
 
     private AuthResponse buildAuthResponse(String message, String token, Member member, String nickname) {

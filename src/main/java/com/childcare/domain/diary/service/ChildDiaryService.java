@@ -4,6 +4,7 @@ import com.childcare.domain.child.entity.Child;
 import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.diary.dto.ChildDiaryDto;
 import com.childcare.domain.diary.dto.ChildDiaryRequest;
+import com.childcare.domain.diary.dto.DiaryStatDto;
 import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
@@ -44,7 +45,7 @@ public class ChildDiaryService {
 
     public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(Long memberSeq, Long childId) {
         log.info("Fetching diaries for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildId(childId);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -58,7 +59,7 @@ public class ChildDiaryService {
 
     public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(Long memberSeq, Long childId, String date) {
         log.info("Fetching diaries for child: {} on date: {}", childId, date);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildIdAndDate(childId, date);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -73,7 +74,7 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<List<ChildDiaryDto>> createDiary(Long memberSeq, Long childId, ChildDiaryRequest request) {
         log.info("Creating diary for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberSeq, childId);
 
         if (request.getItemId() == null) {
             throw new DiaryException(DiaryErrorCode.ITEM_REQUIRED);
@@ -108,7 +109,7 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<List<ChildDiaryDto>> updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
         log.info("Updating diary {} for child: {}", diaryId, childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberSeq, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
@@ -140,7 +141,7 @@ public class ChildDiaryService {
     @Transactional
     public ApiResponse<Void> deleteDiary(Long memberSeq, Long childId, Long diaryId) {
         log.info("Deleting diary {} for child: {}", diaryId, childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateDeleteAccess(memberSeq, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
@@ -156,7 +157,7 @@ public class ChildDiaryService {
 
     public ApiResponse<DiarySummaryDto> getDailySummary(Long memberSeq, Long childId, String date) {
         log.info("Fetching daily summary for child: {} on date: {}", childId, date);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         // 자녀 정보 조회
         Child child = childMapper.findActiveChildById(childId)
@@ -214,5 +215,30 @@ public class ChildDiaryService {
                 .amount(diary.getAmount())
                 .memo(diary.getMemo())
                 .build();
+    }
+
+    /**
+     * 기간별 일지 통계 조회
+     * @param memberSeq 회원 ID
+     * @param childId 자녀 ID
+     * @param periodType 기간 타입 (week, month, year)
+     * @param startDate 시작일 (YYYY-MM-DD)
+     * @param endDate 종료일 (YYYY-MM-DD)
+     */
+    public ApiResponse<DiaryStatDto> getDiaryStats(Long memberSeq, Long childId, String periodType, String startDate, String endDate) {
+        log.info("Fetching diary stats for child: {} from {} to {}", childId, startDate, endDate);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
+
+        List<DiaryStatDto.DiaryStat> stats = diaryMapper.findDiaryStatsByPeriod(childId, startDate, endDate);
+
+        DiaryStatDto data = DiaryStatDto.builder()
+                .childId(childId)
+                .periodType(periodType)
+                .startDate(startDate)
+                .endDate(endDate)
+                .stats(stats)
+                .build();
+
+        return ApiResponse.success("일지 통계 조회 성공", data);
     }
 }

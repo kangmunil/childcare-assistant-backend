@@ -10,8 +10,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CalendarRequest {
+    private String div;
     private String title;
     private String caDate;
     private String caTime;
+    private String place;
+    private String placePostcode;
+    private String placeAddress1;
+    private String placeAddress2;
     private String memo;
 }

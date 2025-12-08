@@ -30,7 +30,7 @@ public class CalendarService {
 
     public ApiResponse<List<CalendarDto>> getCalendarsByChild(Long memberSeq, Long childId) {
         log.info("Fetching calendars for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildId(childId);
 
@@ -43,7 +43,7 @@ public class CalendarService {
 
     public ApiResponse<List<CalendarDto>> getCalendarsByChildAndDate(Long memberSeq, Long childId, String date) {
         log.info("Fetching calendars for child: {} on date: {}", childId, date);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildIdAndDate(childId, date);
 
@@ -56,7 +56,7 @@ public class CalendarService {
 
     public ApiResponse<List<CalendarDto>> getCalendarsByChildAndMonth(Long memberSeq, Long childId, String yearMonth) {
         log.info("Fetching calendars for child: {} on month: {}", childId, yearMonth);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberSeq, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildIdAndMonth(childId, yearMonth);
 
@@ -70,7 +70,7 @@ public class CalendarService {
     @Transactional
     public ApiResponse<CalendarDto> createCalendar(Long memberSeq, Long childId, CalendarRequest request) {
         log.info("Creating calendar for child: {}", childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberSeq, childId);
 
         if (request.getTitle() == null || request.getTitle().isBlank()) {
             throw new CalendarException(CalendarErrorCode.TITLE_REQUIRED);
@@ -84,9 +84,14 @@ public class CalendarService {
 
         Calendar calendar = Calendar.builder()
                 .chSeq(childId)
+                .div(request.getDiv())
                 .title(request.getTitle())
                 .caDate(request.getCaDate())
                 .caTime(request.getCaTime())
+                .place(request.getPlace())
+                .placePostcode(request.getPlacePostcode())
+                .placeAddress1(request.getPlaceAddress1())
+                .placeAddress2(request.getPlaceAddress2())
                 .memo(request.getMemo())
                 .regAiYn("N")
                 .regUserSeq(memberSeq)
@@ -102,11 +107,12 @@ public class CalendarService {
     @Transactional
     public ApiResponse<CalendarDto> updateCalendar(Long memberSeq, Long childId, Long calendarId, CalendarRequest request) {
         log.info("Updating calendar {} for child: {}", calendarId, childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberSeq, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
                 .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
 
+        calendar.setDiv(request.getDiv());
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             calendar.setTitle(request.getTitle());
         }
@@ -116,6 +122,10 @@ public class CalendarService {
         if (request.getCaTime() != null && !request.getCaTime().isBlank()) {
             calendar.setCaTime(request.getCaTime());
         }
+        calendar.setPlace(request.getPlace());
+        calendar.setPlacePostcode(request.getPlacePostcode());
+        calendar.setPlaceAddress1(request.getPlaceAddress1());
+        calendar.setPlaceAddress2(request.getPlaceAddress2());
         calendar.setMemo(request.getMemo());
 
         Calendar updatedCalendar = calendarRepository.save(calendar);
@@ -126,7 +136,7 @@ public class CalendarService {
     @Transactional
     public ApiResponse<Void> deleteCalendar(Long memberSeq, Long childId, Long calendarId) {
         log.info("Deleting calendar {} for child: {}", calendarId, childId);
-        childAccessValidator.validateAccess(memberSeq, childId);
+        childAccessValidator.validateDeleteAccess(memberSeq, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
                 .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
@@ -144,9 +154,14 @@ public class CalendarService {
         return CalendarDto.builder()
                 .id(calendar.getCaSeq())
                 .childId(calendar.getChSeq())
+                .div(calendar.getDiv())
                 .title(calendar.getTitle())
                 .caDate(calendar.getCaDate())
                 .caTime(calendar.getCaTime())
+                .place(calendar.getPlace())
+                .placePostcode(calendar.getPlacePostcode())
+                .placeAddress1(calendar.getPlaceAddress1())
+                .placeAddress2(calendar.getPlaceAddress2())
                 .memo(calendar.getMemo())
                 .build();
     }

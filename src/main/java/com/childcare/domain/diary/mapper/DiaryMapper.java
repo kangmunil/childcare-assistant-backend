@@ -1,5 +1,6 @@
 package com.childcare.domain.diary.mapper;
 
+import com.childcare.domain.diary.dto.DiaryStatDto;
 import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
@@ -20,7 +21,7 @@ public interface DiaryMapper {
     Optional<ChildDiary> findActiveDiaryById(@Param("childId") Long childId, @Param("diSeq") Long diSeq);
 
     // 일지 요약 (항목별 합계)
-    List<DiarySummaryDto.ItemSummary> findDailySummaryByChildId(@Param("childId") Long childId, @Param("diDate") String diDate);
+    List<DiarySummaryDto.ItemSummary> findDiarySummaryByChildId(@Param("childId") Long childId, @Param("diDate") String diDate);
 
     // 일지 요약 (division 기준 모든 항목, 기록 없으면 0)
     List<DiarySummaryDto.ItemSummary> findDailySummaryByDivision(@Param("childId") Long childId, @Param("diDate") String diDate, @Param("division") String division);
@@ -29,4 +30,10 @@ public interface DiaryMapper {
     List<CcDiaryItem> findAllActiveItems();
 
     List<CcDiaryItem> findActiveItemsByDivision(@Param("division") String division);
+
+    // 기간별 일지 통계
+    List<DiaryStatDto.DiaryStat> findDiaryStatsByPeriod(
+            @Param("childId") Long childId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
 }

@@ -9,13 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChildDto {
-    private Long id;
-    private String name;
-    private String birthDate;
-    private String birthTime;
-    private String gender;
+public class GrowthHistoryDto {
+    private Long childId;
+    private String month;
     private String height;
     private String weight;
-    private String photoUrl;
 }

@@ -25,8 +25,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ChildAccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleChildAccessDeniedException(ChildAccessDeniedException e) {
-        log.error("Access denied: {}", e.getMessage());
-        return ResponseEntity.status(403).body(ApiResponse.error("ACCESS_001", e.getMessage()));
+        log.error("Access denied: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.status(403).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(ChildException.class)
@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CalendarException.class)
     public ResponseEntity<ApiResponse<Void>> handleCalendarException(CalendarException e) {
         log.error("Calendar error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(MemberException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMemberException(MemberException e) {
+        log.error("Member error: {} - {}", e.getCode(), e.getMessage());
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 

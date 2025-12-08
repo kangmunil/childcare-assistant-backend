@@ -24,6 +24,9 @@ public class Calendar {
     @Column(name = "ch_seq", nullable = false)
     private Long chSeq;
 
+    @Column(name = "div")
+    private String div;
+
     @Column(name = "title", nullable = false)
     private String title;
 
@@ -32,6 +35,18 @@ public class Calendar {
 
     @Column(name = "ca_time", nullable = false)
     private String caTime;
+
+    @Column(name = "place")
+    private String place;
+
+    @Column(name = "place_postcode")
+    private String placePostcode;
+
+    @Column(name = "place_address1")
+    private String placeAddress1;
+
+    @Column(name = "place_address2")
+    private String placeAddress2;
 
     @Column(name = "memo")
     private String memo;

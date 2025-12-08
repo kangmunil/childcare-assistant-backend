@@ -2,6 +2,7 @@ package com.childcare.domain.child.controller;
 
 import com.childcare.domain.child.dto.ChildDto;
 import com.childcare.domain.child.dto.ChildRequest;
+import com.childcare.domain.child.dto.GrowthHistoryDto;
 import com.childcare.domain.child.service.ChildService;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.util.SecurityUtil;
@@ -62,6 +63,30 @@ public class ChildController {
         log.info("Delete child {} request for member: {}", id, memberSeq);
 
         ApiResponse<Void> response = childService.deleteChild(memberSeq, id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<List<GrowthHistoryDto>>> getGrowthHistory(@PathVariable Long id) {
+        Long memberSeq = getMemberSeq();
+        log.info("Get growth history for child {} request for member: {}", id, memberSeq);
+
+        ApiResponse<List<GrowthHistoryDto>> response = childService.getGrowthHistory(memberSeq, id);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 가족 관계 삭제
+     * DELETE /children/{childId}/parents/{targetMbSeq}
+     */
+    @DeleteMapping("/{childId}/parents/{targetMbSeq}")
+    public ResponseEntity<ApiResponse<Void>> deleteParentRelation(
+            @PathVariable Long childId,
+            @PathVariable Long targetMbSeq) {
+        Long memberSeq = getMemberSeq();
+        log.info("Delete parent relation for child {} member {} by {}", childId, targetMbSeq, memberSeq);
+
+        ApiResponse<Void> response = childService.deleteParentRelation(memberSeq, childId, targetMbSeq);
         return ResponseEntity.ok(response);
     }
 
