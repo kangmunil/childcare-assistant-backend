@@ -19,9 +19,10 @@ public class AuthException extends RuntimeException {
         INVALID_CREDENTIALS("AUTH_005", "아이디 또는 비밀번호가 일치하지 않습니다."),
         REGISTRATION_FAILED("AUTH_006", "회원가입에 실패했습니다."),
         INVITE_CODE_GENERATION_FAILED("AUTH_007", "초대코드 생성에 실패했습니다. 다시 시도해주세요."),
-        TOKEN_EXPIRED("AUTH_008", "토큰이 만료되었습니다."),
-        INVALID_TOKEN("AUTH_009", "유효하지 않은 토큰입니다."),
-        MEMBER_NOT_FOUND("AUTH_010", "회원 정보를 찾을 수 없습니다.");
+        TOKEN_EXPIRED("AUTH_008", "토큰이 만료되었습니다. 다시 로그인해주세요."),
+        INVALID_TOKEN("AUTH_009", "유효하지 않은 토큰입니다. 다시 로그인해주세요."),
+        MEMBER_NOT_FOUND("AUTH_010", "회원 정보를 찾을 수 없습니다."),
+        MEMBER_ALREADY_EXISTS("AUTH_011", "이미 등록된 회원입니다.");
 
         private final String code;
         private final String message;

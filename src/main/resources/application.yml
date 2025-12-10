@@ -10,7 +10,13 @@ server:
 spring:
   application:
     name: childcare-assistant
-    
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 50MB
+
   datasource:
     url: jdbc:postgresql://localhost:5432/childcare
     username: postgres
@@ -42,7 +48,10 @@ mybatis:
 jwt:
   secret: mySecretKeyForChildcareAssistantApp1234567890123456789012345
   access-token-validity-in-seconds: 86400
-      
+
+file:
+  upload-dir: uploads
+
 logging:
   level:
     root: INFO

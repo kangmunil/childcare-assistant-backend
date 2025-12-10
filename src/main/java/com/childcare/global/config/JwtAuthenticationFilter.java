@@ -1,8 +1,7 @@
 package com.childcare.global.config;
 
+import com.childcare.global.exception.AuthException;
 import com.childcare.global.util.JwtUtil;
-import com.childcare.global.util.JwtUtil.TokenExpiredException;
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,13 +69,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 sendAuthError(response, "인증이 필요합니다.");
                 return;
             }
-        } catch(TokenExpiredException ex) {
-            logger.info("JWT token is expired: " + ex.getMessage());
-            sendAuthError(response, "AUTH_008", "토큰이 만료되었습니다.");
-            return;
-        } catch(JwtException ex) {
-            logger.info("Failed to authorize/authenticate with JWT due to " + ex.getMessage());
-            sendAuthError(response, "AUTH_009", "유효하지 않은 토큰입니다.");
+        } catch(AuthException ex) {
+            logger.info("JWT authentication failed: " + ex.getMessage());
+            sendAuthError(response, ex.getCode(), ex.getMessage());
             return;
         }
 

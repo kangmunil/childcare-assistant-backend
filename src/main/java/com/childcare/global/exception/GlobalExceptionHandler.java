@@ -20,6 +20,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthException(AuthException e) {
         log.error("Auth error: {} - {}", e.getCode(), e.getMessage());
+        // 토큰 관련 에러는 401 반환
+        if ("AUTH_008".equals(e.getCode()) || "AUTH_009".equals(e.getCode())) {
+            return ResponseEntity.status(401).body(ApiResponse.error(e.getCode(), e.getMessage()));
+        }
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
@@ -50,6 +54,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MemberException.class)
     public ResponseEntity<ApiResponse<Void>> handleMemberException(MemberException e) {
         log.error("Member error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(BoardException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBoardException(BoardException e) {
+        log.error("Board error: {} - {}", e.getCode(), e.getMessage());
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 

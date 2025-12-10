@@ -113,7 +113,7 @@ public class FamilyService {
 
         // 이미 공유된 회원인지 확인
         if (parentRepository.findByMbSeqAndChSeq(targetMember.getMbSeq(), childId).isPresent()) {
-            throw new AuthException(AuthErrorCode.EMAIL_ALREADY_EXISTS); // 이미 공유됨
+            throw new AuthException(AuthErrorCode.MEMBER_ALREADY_EXISTS); // 이미 공유됨
         }
 
         // 새 공유 관계 생성 (auth_manage는 0, 나머지는 1)

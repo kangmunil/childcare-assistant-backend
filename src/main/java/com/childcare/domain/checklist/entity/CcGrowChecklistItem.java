@@ -17,8 +17,7 @@ import java.time.LocalDateTime;
 public class CcGrowChecklistItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "cc_grow_checklist_item_seq")
-    @SequenceGenerator(name = "cc_grow_checklist_item_seq", sequenceName = "cc_grow_checklist_item_cc_gc_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "cc_gc_seq")
     private Long ccGcSeq;
 

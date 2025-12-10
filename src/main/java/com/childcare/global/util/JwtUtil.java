@@ -1,7 +1,10 @@
 package com.childcare.global.util;
 
+import com.childcare.global.exception.AuthException;
+import com.childcare.global.exception.AuthException.AuthErrorCode;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -75,22 +78,22 @@ public class JwtUtil {
             return true;
         } catch (ExpiredJwtException e) {
             log.error("JWT token is expired: {}", e.getMessage());
-            throw new TokenExpiredException("토큰이 만료되었습니다.");
-        } catch (SecurityException e) {
+            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
+        } catch (SignatureException e) {
             log.error("Invalid JWT signature: {}", e.getMessage());
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
+        } catch (SecurityException e) {
+            log.error("JWT security error: {}", e.getMessage());
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         } catch (MalformedJwtException e) {
             log.error("Invalid JWT token: {}", e.getMessage());
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         } catch (UnsupportedJwtException e) {
             log.error("JWT token is unsupported: {}", e.getMessage());
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         } catch (IllegalArgumentException e) {
             log.error("JWT claims string is empty: {}", e.getMessage());
-        }
-        return false;
-    }
-
-    public static class TokenExpiredException extends RuntimeException {
-        public TokenExpiredException(String message) {
-            super(message);
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         }
     }
 }

@@ -16,8 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Calendar {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_calendar_seq")
-    @SequenceGenerator(name = "child_calendar_seq", sequenceName = "child_calendar_ca_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ca_seq")
     private Long caSeq;
 

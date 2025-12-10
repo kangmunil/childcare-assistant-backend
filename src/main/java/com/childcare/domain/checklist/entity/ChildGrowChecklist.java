@@ -17,8 +17,7 @@ import java.time.LocalDateTime;
 public class ChildGrowChecklist {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_grow_checklist_seq")
-    @SequenceGenerator(name = "child_grow_checklist_seq", sequenceName = "child_grow_checklist_gc_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "gc_seq")
     private Long gcSeq;
 
