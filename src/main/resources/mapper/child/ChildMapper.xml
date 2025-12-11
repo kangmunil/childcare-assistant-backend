@@ -19,20 +19,54 @@
     </resultMap>
 
     <select id="findActiveChildrenByMemberSeq" resultMap="childResultMap">
+        <![CDATA[
         SELECT c.*
-        FROM child c
-        JOIN parent p ON c.ch_seq = p.ch_seq
-        JOIN member m ON p.mb_seq = m.mb_seq
-        WHERE p.mb_seq = #{memberSeq}
-          AND m.leave_date IS NULL
-          AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+        FROM member m
+        JOIN parent p ON m.mb_seq = p.mb_seq AND p.auth_read = '1'
+        JOIN child c ON c.ch_seq = p.ch_seq AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+        WHERE m.mb_seq = #{memberSeq}
+        ]]>
     </select>
 
     <select id="findActiveChildById" resultMap="childResultMap">
+        <![CDATA[
         SELECT *
         FROM child
         WHERE ch_seq = #{childId}
           AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </select>
+
+    <resultMap id="growthHistoryResultMap" type="com.childcare.domain.child.dto.GrowthHistoryDto">
+        <result property="childId" column="ch_seq"/>
+        <result property="month" column="month"/>
+        <result property="height" column="height"/>
+        <result property="weight" column="weight"/>
+    </resultMap>
+
+    <select id="findGrowthHistory" resultMap="growthHistoryResultMap">
+        <![CDATA[
+        SELECT ch_seq, month, height, weight
+        FROM (
+            SELECT
+                c.ch_seq,
+                TO_CHAR(DATE_TRUNC('month', h.reg_date), 'YYYY-MM') AS month,
+                h.height,
+                h.weight,
+                ROW_NUMBER() OVER (
+                    PARTITION BY h.ch_seq, DATE_TRUNC('month', h.reg_date)
+                    ORDER BY h.reg_date DESC
+                ) rn
+            FROM child c
+            JOIN child_grow_history h ON c.ch_seq = h.ch_seq
+                AND (h.delete_yn IS NULL OR h.delete_yn != 'Y')
+            WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+              AND c.ch_seq = #{childId}
+              AND h.reg_date >= DATE_TRUNC('month', NOW() - INTERVAL '4 months')
+        ) sub
+        WHERE rn = 1
+        ORDER BY month
+        ]]>
     </select>
 
 </mapper>

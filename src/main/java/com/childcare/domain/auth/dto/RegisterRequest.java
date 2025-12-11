@@ -24,7 +24,8 @@ public class RegisterRequest {
     
     private String phone;
     private String tel;
+    private String postcode;
     private String addr1;
     private String addr2;
-    private String addr3;
+    private String referralCode;  // 추천인 초대코드 (선택)
 }

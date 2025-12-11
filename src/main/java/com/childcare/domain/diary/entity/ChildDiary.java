@@ -18,7 +18,7 @@ public class ChildDiary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_diary_seq")
-    @SequenceGenerator(name = "child_diary_seq", sequenceName = "child_diary_di_seq_seq", allocationSize = 1)
+    @SequenceGenerator(name = "child_diary_seq", sequenceName = "child_diary_di_seq", allocationSize = 1)
     @Column(name = "di_seq")
     private Long diSeq;
 

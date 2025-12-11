@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.board.mapper.BoardMapper">
+
+    <resultMap id="boardItemListResultMap" type="com.childcare.domain.board.dto.BoardItemListDto">
+        <id property="id" column="bi_seq"/>
+        <result property="title" column="title"/>
+        <result property="readCount" column="read_count"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="commentCount" column="comment_count"/>
+        <result property="fixYn" column="fix_yn"/>
+        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regUserName" column="reg_user_name"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="hasFile" column="has_file"/>
+    </resultMap>
+
+    <sql id="FromboardItem">
+        FROM board_item i
+        JOIN member m ON i.reg_user_seq = m.mb_seq
+        WHERE i.bo_seq = #{boardId}
+          AND i.fix_yn IS NULL
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+    </sql>
+
+    <sql id="wherePostcode">
+        <if test="postcode != null">
+            AND i.reg_user_postcode = #{postcode}
+        </if>
+    </sql>
+
+    <sql id="searchCondition">
+        <if test="keyword != null and keyword != ''">
+            <choose>
+                <when test="searchType == 'title'">
+                    AND LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'content'">
+                    AND LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'author'">
+                    AND LOWER(m.name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'titleContent'">
+                    AND (LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                         OR LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+                </when>
+            </choose>
+        </if>
+    </sql>
+
+    <!-- 게시글 검색 -->
+    <select id="searchItems" resultMap="boardItemListResultMap">
+        SELECT
+            i.bi_seq,
+            i.title,
+            COALESCE(i.read_count, 0) AS read_count,
+            COALESCE(i.like_count, 0) AS like_count,
+            (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
+            i.fix_yn,
+            i.reg_user_seq,
+            m.name AS reg_user_name,
+            i.reg_date,
+            CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
+        <include refid="FromboardItem"/>
+        <include refid="wherePostcode"/>
+        <include refid="searchCondition"/>
+        ORDER BY i.reg_date DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 게시글 검색 총 개수 -->
+    <select id="countSearchItems" resultType="int">
+        SELECT COUNT(*)
+        <include refid="FromboardItem"/>
+        <include refid="wherePostcode"/>
+        <include refid="searchCondition"/>
+    </select>
+
+    <!-- 댓글 목록 조회 ResultMap -->
+    <resultMap id="boardCommentListResultMap" type="com.childcare.domain.board.dto.BoardCommentListDto">
+        <id property="id" column="bc_seq"/>
+        <result property="itemId" column="bi_seq"/>
+        <result property="parentSeq" column="parent_seq"/>
+        <result property="depth" column="depth"/>
+        <result property="content" column="content"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="secretYn" column="secret_yn"/>
+        <result property="fixYn" column="fix_yn"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regUserName" column="reg_user_name"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="updateUserSeq" column="update_user_seq"/>
+        <result property="updateDate" column="update_date"/>
+        <result property="liked" column="liked"/>
+    </resultMap>
+
+    <!-- 댓글 목록 조회 (정렬: 고정댓글 우선 > 부모-자식 그룹핑 > 등록일순) -->
+    <select id="getComments" resultMap="boardCommentListResultMap">
+        SELECT
+            c.bc_seq,
+            c.bi_seq,
+            c.parent_seq,
+            c.depth,
+            --CASE WHEN c.delete_yn = 'Y' THEN '삭제된 댓글입니다.' ELSE c.content END AS content,
+            c.content,
+            COALESCE(c.like_count, 0) AS like_count,
+            c.secret_yn,
+            c.fix_yn,
+            c.delete_yn,
+            c.reg_user_seq,
+            m.name AS reg_user_name,
+            c.reg_date,
+            c.update_user_seq,
+            c.update_date,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM board_comment_like bcl
+                WHERE bcl.bc_seq = c.bc_seq AND bcl.mb_seq = #{memberSeq}
+            ) THEN true ELSE false END AS liked
+        FROM board_comment c
+        LEFT JOIN member m ON c.reg_user_seq = m.mb_seq
+        WHERE c.bi_seq = #{itemId}
+        ORDER BY
+            CASE WHEN c.fix_yn = 'Y' AND c.parent_seq IS NULL THEN 0 ELSE 1 END,
+            COALESCE(c.parent_seq, c.bc_seq),
+            CASE WHEN c.parent_seq IS NULL THEN 0 ELSE 1 END,
+            c.reg_date ASC
+    </select>
+
+    <!-- 고정글 조회 -->
+    <select id="getFixedItems" resultMap="boardItemListResultMap">
+        SELECT
+            i.bi_seq,
+            i.title,
+            COALESCE(i.read_count, 0) AS read_count,
+            COALESCE(i.like_count, 0) AS like_count,
+            (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
+            i.fix_yn,
+            i.reg_user_seq,
+            m.name AS reg_user_name,
+            i.reg_date,
+            CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
+        FROM board_item i
+        JOIN member m ON i.reg_user_seq = m.mb_seq
+        WHERE i.bo_seq = #{boardId}
+          AND i.fix_yn = 'Y'
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        ORDER BY i.reg_date DESC
+    </select>
+
+    <!-- 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외) -->
+    <select id="getPopularItems" resultMap="boardItemListResultMap">
+        SELECT
+            i.bi_seq,
+            i.title,
+            COALESCE(i.read_count, 0) AS read_count,
+            COALESCE(i.like_count, 0) AS like_count,
+            (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
+            i.fix_yn,
+            i.reg_user_seq,
+            m.name AS reg_user_name,
+            i.reg_date,
+            CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
+        FROM board_item i
+        JOIN member m ON i.reg_user_seq = m.mb_seq
+        WHERE i.bo_seq = #{boardId}
+          AND i.fix_yn IS NULL
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        ORDER BY (COALESCE(i.read_count, 0) + COALESCE(i.like_count, 0)) DESC
+        LIMIT 3
+    </select>
+
+</mapper>

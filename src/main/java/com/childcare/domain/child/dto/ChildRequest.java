@@ -15,7 +15,7 @@ public class ChildRequest {
     private String birthDay;
     private String birthTime;
     private String gender;
-    private Double height;
-    private Double weight;
+    private String height;
+    private String weight;
     private String memo;
 }

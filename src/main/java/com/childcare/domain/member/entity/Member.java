@@ -43,21 +43,29 @@ public class Member {
     @Column(name = "email")
     private String email;
     
+    @Column(name = "postcode")
+    private String postcode;
+
     @Column(name = "addr1")
     private String addr1;
-    
-    @Column(name = "addr2")
+
+    @Column(name = "addr2", length = 1000)
     private String addr2;
-    
-    @Column(name = "addr3", length = 1000)
-    private String addr3;
     
     @Column(name = "login_date")
     private LocalDateTime loginDate;
-    
-    @Column(name = "leave_date")
-    private LocalDateTime leaveDate;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    @Builder.Default
+    private Role role = Role.USER;
+
+    @Column(name = "invite_code", unique = true)
+    private String inviteCode;
+
+    @Column(name = "invited_by")
+    private Long invitedBy;
+
     @CreatedDate
     @Column(name = "reg_date", nullable = false, updatable = false)
     private LocalDateTime regDate;

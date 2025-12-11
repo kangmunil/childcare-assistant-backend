@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "parent")
 @Data
@@ -27,4 +29,26 @@ public class Parent {
 
     @Column(name = "relation", nullable = false)
     private String relation;
+
+    @Column(name = "auth_manage", length = 1)
+    @Builder.Default
+    private String authManage = "1";
+
+    @Column(name = "auth_read", length = 1)
+    @Builder.Default
+    private String authRead = "1";
+
+    @Column(name = "auth_write", length = 1)
+    @Builder.Default
+    private String authWrite = "1";
+
+    @Column(name = "auth_delete", length = 1)
+    @Builder.Default
+    private String authDelete = "1";
+
+    @Column(name = "reg_user_seq", nullable = false)
+    private Long regUserSeq;
+
+    @Column(name = "reg_date", nullable = false)
+    private LocalDateTime regDate;
 }

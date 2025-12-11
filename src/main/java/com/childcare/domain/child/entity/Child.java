@@ -36,11 +36,11 @@ public class Child {
     @Column(name = "memo", length = 1000)
     private String memo;
 
-    @Column(name = "height")
-    private Double height;
+    @Column(name = "height", length = 50)
+    private String height;
 
-    @Column(name = "weight")
-    private Double weight;
+    @Column(name = "weight", length = 50)
+    private String weight;
 
     @Column(name = "reg_user_seq", nullable = false)
     private Long regUserSeq;

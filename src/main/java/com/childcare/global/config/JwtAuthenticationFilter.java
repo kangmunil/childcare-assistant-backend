@@ -1,7 +1,7 @@
 package com.childcare.global.config;
 
+import com.childcare.global.exception.AuthException;
 import com.childcare.global.util.JwtUtil;
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +12,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     private final JwtUtil jwtUtil;
 
-    private final List<String> excludedPaths = Arrays.asList("/api/auth/login","/api/auth/register");
+    private final List<String> excludedPaths = Arrays.asList("/api/auth/", "/api/test/");
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException{
@@ -36,8 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                    HttpServletResponse response, 
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
         try {
@@ -45,20 +47,45 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (token != null && jwtUtil.validateToken(token)) {
                 Long userId = jwtUtil.getUserIdFromToken(token);
                 String email = jwtUtil.getEmailFromToken(token);
+                String role = jwtUtil.getRoleFromToken(token);
+
+                // role이 없으면 기본값 USER
+                if (role == null || role.isEmpty()) {
+                    role = "USER";
+                }
+
+                List<SimpleGrantedAuthority> authorities =
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
 
                 UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
+                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
                 authentication.setDetails(email);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else if (token != null) {
+                sendAuthError(response, "AUTH_009", "유효하지 않은 토큰입니다.");
+                return;
             } else {
-                throw new JwtException("access token is null");
+                sendAuthError(response, "인증이 필요합니다.");
+                return;
             }
-        } catch(JwtException ex) {
-            logger.info("Failed to authorize/authenticate with JWT due to " + ex.getMessage());
+        } catch(AuthException ex) {
+            logger.info("JWT authentication failed: " + ex.getMessage());
+            sendAuthError(response, ex.getCode(), ex.getMessage());
+            return;
         }
-        
+
         filterChain.doFilter(request, response);
+    }
+
+    private void sendAuthError(HttpServletResponse response, String message) throws IOException {
+        sendAuthError(response, "AUTH_001", message);
+    }
+
+    private void sendAuthError(HttpServletResponse response, String code, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"status\":\"error\",\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"data\":null}");
     }
     
     private String getTokenFromRequest(HttpServletRequest request) {
