@@ -10,8 +10,22 @@ import java.util.List;
 public interface ChecklistMapper {
 
     // 체크된 항목 조회
-    List<ChecklistDto> findCheckedByChildId(@Param("childId") Long childId);
+    List<ChecklistDto> findCheckedByChildId(@Param("childId") Long childId, @Param("itemDiv") String div);
 
     // 미체크된 항목 조회
-    List<ChecklistDto> findUncheckedByChildId(@Param("childId") Long childId);
+    List<ChecklistDto> findUncheckedByChildId(@Param("childId") Long childId, @Param("itemDiv") String div);
+
+    // 체크리스트 항목 존재 여부 확인
+    boolean existsChecklistItem(@Param("itemId") Long itemId);
+
+    // 체크 여부 확인
+    boolean isChecked(@Param("childId") Long childId, @Param("itemId") Long itemId);
+
+    // 체크 추가
+    void insertCheck(@Param("childId") Long childId, @Param("itemId") Long itemId,
+                     @Param("gcDate") String gcDate, @Param("regUserSeq") Long regUserSeq);
+
+    // 체크 삭제 (soft delete)
+    void deleteCheck(@Param("childId") Long childId, @Param("itemId") Long itemId,
+                     @Param("deleteUserSeq") Long deleteUserSeq);
 }

@@ -226,10 +226,10 @@ public class ChildDiaryService {
      * @param endDate 종료일 (YYYY-MM-DD)
      */
     public ApiResponse<DiaryStatDto> getDiaryStats(Long memberSeq, Long childId, String periodType, String startDate, String endDate) {
-        log.info("Fetching diary stats for child: {} from {} to {}", childId, startDate, endDate);
+        log.info("Fetching diary stats for child: {} periodType: {} from {} to {}", childId, periodType, startDate, endDate);
         childAccessValidator.validateReadAccess(memberSeq, childId);
 
-        List<DiaryStatDto.DiaryStat> stats = diaryMapper.findDiaryStatsByPeriod(childId, startDate, endDate);
+        List<DiaryStatDto.DiaryStat> stats = diaryMapper.findDiaryStatsByPeriod(childId, periodType, startDate, endDate);
 
         DiaryStatDto data = DiaryStatDto.builder()
                 .childId(childId)
