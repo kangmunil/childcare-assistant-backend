@@ -34,6 +34,7 @@ public interface DiaryMapper {
     // 기간별 일지 통계
     List<DiaryStatDto.DiaryStat> findDiaryStatsByPeriod(
             @Param("childId") Long childId,
+            @Param("periodType") String periodType,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
 }

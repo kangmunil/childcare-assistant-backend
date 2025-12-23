@@ -63,6 +63,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(ChecklistException.class)
+    public ResponseEntity<ApiResponse<Void>> handleChecklistException(ChecklistException e) {
+        log.error("Checklist error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
         log.error("Request body parsing error: {}", e.getMessage());

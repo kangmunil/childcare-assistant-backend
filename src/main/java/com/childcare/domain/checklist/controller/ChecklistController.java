@@ -22,26 +22,52 @@ public class ChecklistController {
     /**
      * 체크된 항목 조회
      */
-    @GetMapping("/checked")
+    @GetMapping("/checked/{div}")
     public ResponseEntity<ApiResponse<List<ChecklistDto>>> getCheckedChecklists(
-            @PathVariable Long childId) {
+            @PathVariable Long childId, @PathVariable String div) {
         Long memberSeq = getMemberSeq();
         log.info("Get checked checklists for child: {}", childId);
 
-        ApiResponse<List<ChecklistDto>> response = checklistService.getCheckedChecklists(memberSeq, childId);
+        ApiResponse<List<ChecklistDto>> response = checklistService.getCheckedChecklists(memberSeq, childId, div);
         return ResponseEntity.ok(response);
     }
 
     /**
      * 미체크된 항목 조회
      */
-    @GetMapping("/unchecked")
+    @GetMapping("/unchecked/{div}")
     public ResponseEntity<ApiResponse<List<ChecklistDto>>> getUncheckedChecklists(
-            @PathVariable Long childId) {
+            @PathVariable Long childId, @PathVariable String div) {
         Long memberSeq = getMemberSeq();
         log.info("Get unchecked checklists for child: {}", childId);
 
-        ApiResponse<List<ChecklistDto>> response = checklistService.getUncheckedChecklists(memberSeq, childId);
+        ApiResponse<List<ChecklistDto>> response = checklistService.getUncheckedChecklists(memberSeq, childId, div);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 체크 추가
+     */
+    @PostMapping("/{itemId}")
+    public ResponseEntity<ApiResponse<Void>> addCheck(
+            @PathVariable Long childId, @PathVariable Long itemId) {
+        Long memberSeq = getMemberSeq();
+        log.info("Add check for child: {}, item: {}", childId, itemId);
+
+        ApiResponse<Void> response = checklistService.addCheck(memberSeq, childId, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 체크 삭제
+     */
+    @DeleteMapping("/{itemId}")
+    public ResponseEntity<ApiResponse<Void>> removeCheck(
+            @PathVariable Long childId, @PathVariable Long itemId) {
+        Long memberSeq = getMemberSeq();
+        log.info("Remove check for child: {}, item: {}", childId, itemId);
+
+        ApiResponse<Void> response = checklistService.removeCheck(memberSeq, childId, itemId);
         return ResponseEntity.ok(response);
     }
 

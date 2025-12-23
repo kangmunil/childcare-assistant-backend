@@ -5,6 +5,7 @@
     <resultMap id="checklistDtoResultMap" type="com.childcare.domain.checklist.dto.ChecklistDto">
         <result property="childId" column="ch_seq"/>
         <result property="itemId" column="cc_gc_seq"/>
+        <result property="itemDiv" column="cc_gc_div"/>
         <result property="itemCode" column="cc_gc_code"/>
         <result property="itemContent" column="cc_gc_content"/>
         <result property="startMonth" column="cc_gc_start_month"/>
@@ -26,6 +27,7 @@
         JOIN child_grow_checklist g ON c.ch_seq = g.ch_seq
           AND g.cc_gc_seq = i.cc_gc_seq
           AND (g.delete_yn IS NULL OR g.delete_yn != 'Y')
+        WHERE i.cc_gc_div = #{itemDiv}
         ORDER BY i.cc_gc_seq
         ]]>
     </select>
@@ -46,8 +48,41 @@
           AND g.cc_gc_seq = i.cc_gc_seq
           AND (g.delete_yn IS NULL OR g.delete_yn != 'Y')
         WHERE g.gc_seq IS NULL
+            AND i.cc_gc_div = #{itemDiv}
         ORDER BY i.cc_gc_seq
         ]]>
     </select>
+
+    <select id="existsChecklistItem" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM cc_grow_checklist_item
+            WHERE cc_gc_seq = #{itemId}
+              AND (delete_yn IS NULL OR delete_yn != 'Y')
+        )
+    </select>
+
+    <select id="isChecked" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM child_grow_checklist
+            WHERE ch_seq = #{childId}
+              AND cc_gc_seq = #{itemId}
+              AND (delete_yn IS NULL OR delete_yn != 'Y')
+        )
+    </select>
+
+    <insert id="insertCheck">
+        INSERT INTO child_grow_checklist (ch_seq, cc_gc_seq, gc_date, reg_user_seq, reg_date)
+        VALUES (#{childId}, #{itemId}, #{gcDate}, #{regUserSeq}, NOW())
+    </insert>
+
+    <update id="deleteCheck">
+        UPDATE child_grow_checklist
+        SET delete_yn = 'Y',
+            delete_user_seq = #{deleteUserSeq},
+            delete_date = NOW()
+        WHERE ch_seq = #{childId}
+          AND cc_gc_seq = #{itemId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </update>
 
 </mapper>

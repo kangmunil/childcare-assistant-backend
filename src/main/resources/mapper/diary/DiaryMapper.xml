@@ -155,7 +155,7 @@
         ORDER BY cc_di_seq
     </select>
 
-    <!-- 기간별 일지 통계 (주별 그룹핑) -->
+    <!-- 기간별 일지 통계 (주별/월별/연도별 그룹핑) -->
     <resultMap id="DiaryStatResultMap" type="com.childcare.domain.diary.dto.DiaryStatDto$DiaryStat">
         <result property="week" column="week"/>
         <result property="itemName" column="item_name"/>
@@ -164,14 +164,42 @@
 
     <select id="findDiaryStatsByPeriod" resultMap="DiaryStatResultMap">
         SELECT
-            TO_CHAR(DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
+            <choose>
+                <when test="periodType == 'week'">
+                    TO_CHAR(DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
+                </when>
+                <when test="periodType == 'month'">
+                    TO_CHAR(DATE_TRUNC('month', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM') AS week,
+                </when>
+                <when test="periodType == 'year'">
+                    TO_CHAR(DATE_TRUNC('year', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY') AS week,
+                </when>
+                <otherwise>
+                    TO_CHAR(DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
+                </otherwise>
+            </choose>
             i.cc_di_name AS item_name,
             SUM(CAST(COALESCE(NULLIF(d.amount, ''), '0') AS DECIMAL)) AS total_amount
         <include refid="FromDiaryJoinItem">
             <property name="childId" value="#{childId}"/>
         </include>
           AND d.di_date BETWEEN #{startDate} AND #{endDate}
-        GROUP BY DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), d.cc_di_seq, i.cc_di_name
+        GROUP BY
+            <choose>
+                <when test="periodType == 'week'">
+                    DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')),
+                </when>
+                <when test="periodType == 'month'">
+                    DATE_TRUNC('month', TO_DATE(d.di_date, 'YYYY-MM-DD')),
+                </when>
+                <when test="periodType == 'year'">
+                    DATE_TRUNC('year', TO_DATE(d.di_date, 'YYYY-MM-DD')),
+                </when>
+                <otherwise>
+                    DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')),
+                </otherwise>
+            </choose>
+            d.cc_di_seq, i.cc_di_name
         ORDER BY week, i.cc_di_name
     </select>
 
