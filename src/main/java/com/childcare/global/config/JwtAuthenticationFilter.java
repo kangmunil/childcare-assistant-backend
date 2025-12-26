@@ -27,7 +27,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
 
-    private final List<String> excludedPaths = Arrays.asList("/api/auth/", "/api/test/");
+    private final List<String> excludedPaths = Arrays.asList(
+            "/api/auth/kakao",
+            "/api/auth/google",
+            "/api/auth/test/",
+            "/api/auth/refresh",
+            "/api/auth/logout/token",
+            "/api/test/"
+    );
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException{

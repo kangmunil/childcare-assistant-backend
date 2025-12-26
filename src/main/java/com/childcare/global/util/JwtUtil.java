@@ -19,11 +19,18 @@ public class JwtUtil {
 
     private final SecretKey secretKey;
     private final long accessTokenValidityInMilliseconds;
+    private final long refreshTokenValidityInMilliseconds;
 
     public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890123456789012345678901234567890}") String secret,
-                   @Value("${jwt.access-token-validity-in-seconds:86400}") long accessTokenValidityInSeconds) {
+                   @Value("${jwt.access-token-validity-in-seconds:3600}") long accessTokenValidityInSeconds,
+                   @Value("${jwt.refresh-token-validity-in-seconds:604800}") long refreshTokenValidityInSeconds) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessTokenValidityInSeconds * 1000;
+        this.refreshTokenValidityInMilliseconds = refreshTokenValidityInSeconds * 1000;
+    }
+
+    public long getRefreshTokenValidityInMilliseconds() {
+        return refreshTokenValidityInMilliseconds;
     }
 
     public String generateToken(UUID userId, String email, String role) {
@@ -38,6 +45,35 @@ public class JwtUtil {
                 .expiration(expiryDate)
                 .signWith(secretKey)
                 .compact();
+    }
+
+    public String generateRefreshToken(UUID userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
+
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("type", "refresh")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    public boolean validateRefreshToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            String type = claims.get("type", String.class);
+            return "refresh".equals(type);
+        } catch (Exception e) {
+            log.error("Refresh token validation failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     public UUID getUserIdFromToken(String token) {

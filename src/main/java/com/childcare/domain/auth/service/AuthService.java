@@ -1,11 +1,15 @@
 package com.childcare.domain.auth.service;
 
 import com.childcare.domain.auth.dto.*;
+import com.childcare.domain.auth.entity.RefreshToken;
+import com.childcare.domain.auth.repository.RefreshTokenRepository;
 import com.childcare.domain.member.entity.Member;
 import com.childcare.domain.member.entity.Role;
 import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
+import com.childcare.global.exception.AuthException;
+import com.childcare.global.exception.AuthException.AuthErrorCode;
 import com.childcare.global.util.InviteCodeGenerator;
 import com.childcare.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,7 @@ public class AuthService {
 
     private final MemberRepository memberRepository;
     private final ParentRepository parentRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final WebClient webClient;
     private final InviteCodeGenerator inviteCodeGenerator;
@@ -187,13 +192,30 @@ public class AuthService {
         }
     }
 
-    private AuthResponse buildAuthResponse(String message, String token, Member member) {
+    private AuthResponse buildAuthResponse(String message, String accessToken, Member member) {
+        // 기존 refresh token 무효화
+        refreshTokenRepository.revokeAllByMbId(member.getId(), LocalDateTime.now());
+
+        // 새 refresh token 생성
+        String refreshTokenValue = jwtUtil.generateRefreshToken(member.getId());
+        long refreshTokenValidityMs = jwtUtil.getRefreshTokenValidityInMilliseconds();
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(refreshTokenValidityMs / 1000);
+
+        RefreshToken refreshToken = RefreshToken.builder()
+                .mbId(member.getId())
+                .token(refreshTokenValue)
+                .expiresAt(expiresAt)
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("Refresh token created for member: {}", member.getId());
+
         return AuthResponse.builder()
                 .status("success")
                 .message(message)
                 .data(AuthResponse.AuthData.builder()
-                        .accessToken(token)
-                        .refreshToken(null)
+                        .accessToken(accessToken)
+                        .refreshToken(refreshTokenValue)
                         .user(AuthResponse.UserDto.builder()
                                 .id(member.getId())
                                 .email(member.getEmail())
@@ -203,5 +225,73 @@ public class AuthService {
                                 .build())
                         .build())
                 .build();
+    }
+
+    /**
+     * Refresh Token으로 새 Access Token 발급
+     */
+    public AuthResponse refresh(String refreshTokenValue) {
+        // Refresh token 검증 (JWT 서명)
+        if (!jwtUtil.validateRefreshToken(refreshTokenValue)) {
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
+        }
+
+        // DB에서 refresh token 조회
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
+
+        // 유효성 검사 (만료, 폐기 여부)
+        if (!refreshToken.isValid()) {
+            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
+        }
+
+        // 회원 조회
+        UUID userId = refreshToken.getMbId();
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
+
+        // 새 Access Token 생성
+        String role = member.getRole() != null ? member.getRole().name() : Role.USER.name();
+        String newAccessToken = jwtUtil.generateToken(member.getId(), member.getEmail(), role);
+
+        log.info("Access token refreshed for member: {}", member.getId());
+
+        return AuthResponse.builder()
+                .status("success")
+                .message("토큰 갱신 성공")
+                .data(AuthResponse.AuthData.builder()
+                        .accessToken(newAccessToken)
+                        .refreshToken(refreshTokenValue)  // 기존 refresh token 유지
+                        .user(AuthResponse.UserDto.builder()
+                                .id(member.getId())
+                                .email(member.getEmail())
+                                .nickname(member.getName())
+                                .name(member.getName())
+                                .profileImageUrl(member.getProfileImageUrl())
+                                .build())
+                        .build())
+                .build();
+    }
+
+    /**
+     * 로그아웃 (Refresh Token 무효화)
+     */
+    public void logout(UUID userId) {
+        int revokedCount = refreshTokenRepository.revokeAllByMbId(userId, LocalDateTime.now());
+        log.info("Logged out member: {}, revoked {} refresh tokens", userId, revokedCount);
+    }
+
+    /**
+     * Refresh Token으로 로그아웃
+     */
+    public void logoutByRefreshToken(String refreshTokenValue) {
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
+                .orElse(null);
+
+        if (refreshToken != null && refreshToken.isValid()) {
+            refreshToken.setRevokedAt(LocalDateTime.now());
+            refreshTokenRepository.save(refreshToken);
+            log.info("Refresh token revoked for member: {}", refreshToken.getMbId());
+        }
     }
 }
