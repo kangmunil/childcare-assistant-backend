@@ -62,6 +62,7 @@ public class AuthController {
 
     /**
      * 테스트용 회원가입/로그인 (OAuth API 없이 테스트용)
+     * TODO:소셜 로그인 연동 후 삭제해야함
      */
     @PostMapping("/test/register")
     public ResponseEntity<AuthResponse> testRegister(
