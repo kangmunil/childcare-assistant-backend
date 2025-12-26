@@ -28,6 +28,7 @@ import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -43,9 +44,9 @@ public class ChildDiaryService {
     private final ChildMapper childMapper;
     private final ChildAccessValidator childAccessValidator;
 
-    public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(Long memberSeq, Long childId) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChild(UUID memberId, Long childId) {
         log.info("Fetching diaries for child: {}", childId);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildId(childId);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -57,9 +58,9 @@ public class ChildDiaryService {
         return ApiResponse.success("성장일지 조회 성공", diaryDtos);
     }
 
-    public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(Long memberSeq, Long childId, String date) {
+    public ApiResponse<List<ChildDiaryDto>> getDiariesByChildAndDate(UUID memberId, Long childId, String date) {
         log.info("Fetching diaries for child: {} on date: {}", childId, date);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<ChildDiary> diaries = diaryMapper.findDiariesByChildIdAndDate(childId, date);
         Map<Long, CcDiaryItem> itemMap = getItemMap();
@@ -72,9 +73,9 @@ public class ChildDiaryService {
     }
 
     @Transactional
-    public ApiResponse<List<ChildDiaryDto>> createDiary(Long memberSeq, Long childId, ChildDiaryRequest request) {
+    public ApiResponse<List<ChildDiaryDto>> createDiary(UUID memberId, Long childId, ChildDiaryRequest request) {
         log.info("Creating diary for child: {}", childId);
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         if (request.getItemId() == null) {
             throw new DiaryException(DiaryErrorCode.ITEM_REQUIRED);
@@ -96,7 +97,7 @@ public class ChildDiaryService {
                 .diTime(request.getDiTime())
                 .amount(request.getAmount())
                 .memo(request.getMemo())
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .deleteYn("N")
                 .build();
@@ -107,9 +108,9 @@ public class ChildDiaryService {
     }
 
     @Transactional
-    public ApiResponse<List<ChildDiaryDto>> updateDiary(Long memberSeq, Long childId, Long diaryId, ChildDiaryRequest request) {
+    public ApiResponse<List<ChildDiaryDto>> updateDiary(UUID memberId, Long childId, Long diaryId, ChildDiaryRequest request) {
         log.info("Updating diary {} for child: {}", diaryId, childId);
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
@@ -139,15 +140,15 @@ public class ChildDiaryService {
     }
 
     @Transactional
-    public ApiResponse<Void> deleteDiary(Long memberSeq, Long childId, Long diaryId) {
+    public ApiResponse<Void> deleteDiary(UUID memberId, Long childId, Long diaryId) {
         log.info("Deleting diary {} for child: {}", diaryId, childId);
-        childAccessValidator.validateDeleteAccess(memberSeq, childId);
+        childAccessValidator.validateDeleteAccess(memberId, childId);
 
         ChildDiary diary = diaryMapper.findActiveDiaryById(childId, diaryId)
                 .orElseThrow(() -> new DiaryException(DiaryErrorCode.NOT_FOUND));
 
         diary.setDeleteYn("Y");
-        diary.setDeleteUserSeq(String.valueOf(memberSeq));
+        diary.setDeleteId(memberId);
         diary.setDeleteDate(LocalDateTime.now());
 
         childDiaryRepository.save(diary);
@@ -155,9 +156,9 @@ public class ChildDiaryService {
         return ApiResponse.success("성장일지 삭제 성공", null);
     }
 
-    public ApiResponse<DiarySummaryDto> getDailySummary(Long memberSeq, Long childId, String date) {
+    public ApiResponse<DiarySummaryDto> getDailySummary(UUID memberId, Long childId, String date) {
         log.info("Fetching daily summary for child: {} on date: {}", childId, date);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         // 자녀 정보 조회
         Child child = childMapper.findActiveChildById(childId)
@@ -219,15 +220,15 @@ public class ChildDiaryService {
 
     /**
      * 기간별 일지 통계 조회
-     * @param memberSeq 회원 ID
+     * @param memberId 회원 ID
      * @param childId 자녀 ID
      * @param periodType 기간 타입 (week, month, year)
      * @param startDate 시작일 (YYYY-MM-DD)
      * @param endDate 종료일 (YYYY-MM-DD)
      */
-    public ApiResponse<DiaryStatDto> getDiaryStats(Long memberSeq, Long childId, String periodType, String startDate, String endDate) {
+    public ApiResponse<DiaryStatDto> getDiaryStats(UUID memberId, Long childId, String periodType, String startDate, String endDate) {
         log.info("Fetching diary stats for child: {} periodType: {} from {} to {}", childId, periodType, startDate, endDate);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<DiaryStatDto.DiaryStat> stats = diaryMapper.findDiaryStatsByPeriod(childId, periodType, startDate, endDate);
 

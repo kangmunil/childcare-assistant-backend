@@ -11,20 +11,20 @@
         <result property="memo" column="memo"/>
         <result property="height" column="height"/>
         <result property="weight" column="weight"/>
-        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regDate" column="reg_date"/>
         <result property="deleteYn" column="delete_yn"/>
-        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="deleteDate" column="delete_date"/>
     </resultMap>
 
-    <select id="findActiveChildrenByMemberSeq" resultMap="childResultMap">
+    <select id="findActiveChildrenByMemberId" resultMap="childResultMap">
         <![CDATA[
         SELECT c.*
         FROM member m
-        JOIN parent p ON m.mb_seq = p.mb_seq AND p.auth_read = '1'
+        JOIN parent p ON m.id = p.mb_id AND p.auth_read = '1'
         JOIN child c ON c.ch_seq = p.ch_seq AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
-        WHERE m.mb_seq = #{memberSeq}
+        WHERE m.id = #{memberId}::uuid
         ]]>
     </select>
 

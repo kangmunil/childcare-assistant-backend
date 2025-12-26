@@ -11,21 +11,22 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @Slf4j
 public class JwtUtil {
-    
+
     private final SecretKey secretKey;
     private final long accessTokenValidityInMilliseconds;
-    
-    public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890}") String secret,
-                   @Value("${jwt.access-token-validity-in-seconds:3600}") long accessTokenValidityInSeconds) {
+
+    public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890123456789012345678901234567890}") String secret,
+                   @Value("${jwt.access-token-validity-in-seconds:86400}") long accessTokenValidityInSeconds) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessTokenValidityInSeconds * 1000;
     }
-    
-    public String generateToken(Long userId, String email, String role) {
+
+    public String generateToken(UUID userId, String email, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenValidityInMilliseconds);
 
@@ -38,17 +39,17 @@ public class JwtUtil {
                 .signWith(secretKey)
                 .compact();
     }
-    
-    public Long getUserIdFromToken(String token) {
+
+    public UUID getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(secretKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        
-        return Long.parseLong(claims.getSubject());
+
+        return UUID.fromString(claims.getSubject());
     }
-    
+
     public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(secretKey)
@@ -68,7 +69,7 @@ public class JwtUtil {
 
         return claims.get("role", String.class);
     }
-    
+
     public boolean validateToken(String token) {
         try {
             Jwts.parser()

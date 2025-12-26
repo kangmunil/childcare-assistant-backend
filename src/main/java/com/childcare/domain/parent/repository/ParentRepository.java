@@ -6,15 +6,16 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface ParentRepository extends JpaRepository<Parent, Integer> {
+public interface ParentRepository extends JpaRepository<Parent, Long> {
 
-    Optional<Parent> findByMbSeqAndChSeq(Long mbSeq, Long chSeq);
+    Optional<Parent> findByMbIdAndChSeq(UUID mbId, Long chSeq);
 
-    List<Parent> findByMbSeq(Long mbSeq);
+    List<Parent> findByMbId(UUID mbId);
 
     List<Parent> findByChSeq(Long chSeq);
 
-    void deleteByMbSeqAndChSeq(Long mbSeq, Long chSeq);
+    void deleteByMbIdAndChSeq(UUID mbId, Long chSeq);
 }

@@ -14,7 +14,7 @@
 
     <select id="findCheckedByChildId" resultMap="checklistDtoResultMap">
         <![CDATA[
-        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
+        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_div, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
         FROM (
             SELECT c.ch_seq, GET_MONTHS_OF_AGE(to_date(c.birth_day,'YYYY-MM-DD')) birthday
             FROM child c
@@ -34,7 +34,7 @@
 
     <select id="findUncheckedByChildId" resultMap="checklistDtoResultMap">
         <![CDATA[
-        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
+        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_div, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
         FROM (
             SELECT c.ch_seq, GET_MONTHS_OF_AGE(to_date(c.birth_day,'YYYY-MM-DD')) birthday
             FROM child c
@@ -71,14 +71,14 @@
     </select>
 
     <insert id="insertCheck">
-        INSERT INTO child_grow_checklist (ch_seq, cc_gc_seq, gc_date, reg_user_seq, reg_date)
-        VALUES (#{childId}, #{itemId}, #{gcDate}, #{regUserSeq}, NOW())
+        INSERT INTO child_grow_checklist (ch_seq, cc_gc_seq, gc_date, reg_id, reg_date)
+        VALUES (#{childId}, #{itemId}, #{gcDate}, #{regId}::uuid, NOW())
     </insert>
 
     <update id="deleteCheck">
         UPDATE child_grow_checklist
         SET delete_yn = 'Y',
-            delete_user_seq = #{deleteUserSeq},
+            delete_id = #{deleteId}::uuid,
             delete_date = NOW()
         WHERE ch_seq = #{childId}
           AND cc_gc_seq = #{itemId}

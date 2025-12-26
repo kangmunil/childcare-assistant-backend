@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,10 +31,10 @@ public class ChildService {
     private final ParentRepository parentRepository;
     private final ChildMapper childMapper;
 
-    public ApiResponse<List<ChildDto>> getChildrenByMemberSeq(Long memberSeq) {
-        log.info("Fetching children for member: {}", memberSeq);
+    public ApiResponse<List<ChildDto>> getChildrenByMemberId(UUID memberId) {
+        log.info("Fetching children for member: {}", memberId);
 
-        List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
+        List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
 
         List<ChildDto> childDtos = children.stream()
                 .map(this::toDto)
@@ -42,11 +43,11 @@ public class ChildService {
         return ApiResponse.success("자녀 목록 조회 성공", childDtos);
     }
 
-    public ApiResponse<ChildDto> getChildById(Long memberSeq, Long childId) {
-        log.info("Fetching child {} for member: {}", childId, memberSeq);
+    public ApiResponse<ChildDto> getChildById(UUID memberId, Long childId) {
+        log.info("Fetching child {} for member: {}", childId, memberId);
 
         // 해당 회원의 자녀인지 확인
-        List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
+        List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
         boolean hasAccess = children.stream()
                 .anyMatch(c -> c.getChSeq().equals(childId));
 
@@ -61,8 +62,8 @@ public class ChildService {
     }
 
     @Transactional
-    public ApiResponse<List<ChildDto>> createChild(Long memberSeq, ChildRequest request) {
-        log.info("Creating child for member: {}", memberSeq);
+    public ApiResponse<List<ChildDto>> createChild(UUID memberId, ChildRequest request) {
+        log.info("Creating child for member: {}", memberId);
 
         if (request.getName() == null || request.getName().isBlank()) {
             throw new ChildException(ChildErrorCode.NAME_REQUIRED);
@@ -82,7 +83,7 @@ public class ChildService {
                 .height(request.getHeight())
                 .weight(request.getWeight())
                 .memo(request.getMemo())
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .deleteYn("N")
                 .build();
@@ -90,14 +91,14 @@ public class ChildService {
         Child savedChild = childRepository.save(child);
 
         Parent parent = Parent.builder()
-                .mbSeq(memberSeq)
+                .mbId(memberId)
                 .chSeq(savedChild.getChSeq())
                 .relation("family")
                 .authManage("1")
                 .authRead("1")
                 .authWrite("1")
                 .authDelete("1")
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
 
@@ -107,8 +108,8 @@ public class ChildService {
     }
 
     @Transactional
-    public ApiResponse<List<ChildDto>> updateChild(Long memberSeq, Long childId, ChildRequest request) {
-        log.info("Updating child {} for member: {}", childId, memberSeq);
+    public ApiResponse<List<ChildDto>> updateChild(UUID memberId, Long childId, ChildRequest request) {
+        log.info("Updating child {} for member: {}", childId, memberId);
 
         Child child = childRepository.findById(childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
@@ -131,8 +132,8 @@ public class ChildService {
     }
 
     @Transactional
-    public ApiResponse<Void> deleteChild(Long memberSeq, Long childId) {
-        log.info("Deleting child {} for member: {}", childId, memberSeq);
+    public ApiResponse<Void> deleteChild(UUID memberId, Long childId) {
+        log.info("Deleting child {} for member: {}", childId, memberId);
 
         Child child = childRepository.findById(childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
@@ -140,27 +141,22 @@ public class ChildService {
         if ("Y".equals(child.getDeleteYn())) {
             throw new ChildException(ChildErrorCode.ALREADY_DELETED);
         }
-/*
-        // 1. 등록자(reg_user_seq)인지 확인
-        if (!child.getRegUserSeq().equals(memberSeq)) {
-            throw new ChildException(ChildErrorCode.NO_DELETE_PERMISSION);
-        }
-*/
-        // 2. auth_manage 권한 확인
-        Parent myRelation = parentRepository.findByMbSeqAndChSeq(memberSeq, childId)
+
+        // auth_manage 권한 확인
+        Parent myRelation = parentRepository.findByMbIdAndChSeq(memberId, childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NO_DELETE_PERMISSION));
 
         if (!"1".equals(myRelation.getAuthManage())) {
             throw new ChildException(ChildErrorCode.NO_DELETE_PERMISSION);
         }
 
-        // 3. 모든 가족 관계 삭제
+        // 모든 가족 관계 삭제
         var parentRelations = parentRepository.findByChSeq(childId);
         parentRepository.deleteAll(parentRelations);
 
-        // 4. 자녀 삭제
+        // 자녀 삭제
         child.setDeleteYn("Y");
-        child.setDeleteUserSeq(String.valueOf(memberSeq));
+        child.setDeleteId(memberId);
         child.setDeleteDate(LocalDateTime.now());
 
         childRepository.save(child);
@@ -172,11 +168,11 @@ public class ChildService {
      * 가족 관계 삭제
      */
     @Transactional
-    public ApiResponse<Void> deleteParentRelation(Long memberSeq, Long childId, Long targetMbSeq) {
-        log.info("Deleting parent relation for child {} member {} by {}", childId, targetMbSeq, memberSeq);
+    public ApiResponse<Void> deleteParentRelation(UUID memberId, Long childId, UUID targetMbId) {
+        log.info("Deleting parent relation for child {} member {} by {}", childId, targetMbId, memberId);
 
         // 요청자의 auth_manage 권한 확인
-        Parent myRelation = parentRepository.findByMbSeqAndChSeq(memberSeq, childId)
+        Parent myRelation = parentRepository.findByMbIdAndChSeq(memberId, childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
         if (!"1".equals(myRelation.getAuthManage())) {
@@ -184,7 +180,7 @@ public class ChildService {
         }
 
         // 삭제할 가족 관계 조회
-        Parent targetRelation = parentRepository.findByMbSeqAndChSeq(targetMbSeq, childId)
+        Parent targetRelation = parentRepository.findByMbIdAndChSeq(targetMbId, childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.PARENT_NOT_FOUND));
 
         parentRepository.delete(targetRelation);
@@ -192,11 +188,11 @@ public class ChildService {
         return ApiResponse.success("가족 관계 삭제 성공", null);
     }
 
-    public ApiResponse<List<GrowthHistoryDto>> getGrowthHistory(Long memberSeq, Long childId) {
+    public ApiResponse<List<GrowthHistoryDto>> getGrowthHistory(UUID memberId, Long childId) {
         log.info("Fetching growth history for child: {}", childId);
 
         // 해당 회원의 자녀인지 확인
-        List<Child> children = childMapper.findActiveChildrenByMemberSeq(memberSeq);
+        List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
         boolean hasAccess = children.stream()
                 .anyMatch(c -> c.getChSeq().equals(childId));
 

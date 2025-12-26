@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface BoardMapper {
@@ -31,7 +32,7 @@ public interface BoardMapper {
     // 댓글 목록 조회 (정렬: 고정댓글 우선 > 부모-자식 그룹핑 > 등록일순)
     List<BoardCommentListDto> getComments(
             @Param("itemId") Long itemId,
-            @Param("memberSeq") Long memberSeq
+            @Param("memberId") UUID memberId
     );
 
     // 고정글 조회

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "child_calendar")
@@ -53,8 +54,8 @@ public class Calendar {
     @Column(name = "reg_ai_yn")
     private String regAiYn;
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;
@@ -62,8 +63,8 @@ public class Calendar {
     @Column(name = "delete_yn", length = 1)
     private String deleteYn;
 
-    @Column(name = "delete_user_seq")
-    private String deleteUserSeq;
+    @Column(name = "delete_id", columnDefinition = "uuid")
+    private UUID deleteId;
 
     @Column(name = "delete_date")
     private LocalDateTime deleteDate;

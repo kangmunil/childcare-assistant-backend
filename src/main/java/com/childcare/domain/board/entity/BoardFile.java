@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "board_file")
@@ -39,8 +40,8 @@ public class BoardFile {
     @Column(name = "bf_size")
     private Integer bfSize;
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;

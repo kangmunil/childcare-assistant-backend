@@ -11,9 +11,6 @@ import com.childcare.global.exception.BoardException;
 import com.childcare.global.exception.BoardException.BoardErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,14 +37,14 @@ public class BoardItemService {
     /**
      * 게시글 목록 조회
      */
-    public ApiResponse<Map<String, Object>> getItemList(Long memberSeq, Long boardId, BoardSearchRequest searchRequest) {
-        log.info("Get item list for board: {}, member: {}", boardId, memberSeq);
+    public ApiResponse<Map<String, Object>> getItemList(UUID memberId, Long boardId, BoardSearchRequest searchRequest) {
+        log.info("Get item list for board: {}, member: {}", boardId, memberId);
 
         // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
 
         // 읽기 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateReadPermission(board, member);
 
         // 동네 게시판인 경우 우편번호 검증
@@ -96,15 +93,15 @@ public class BoardItemService {
      * 게시글 상세 조회
      */
     @Transactional
-    public ApiResponse<BoardItemDto> getItem(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Get item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+    public ApiResponse<BoardItemDto> getItem(UUID memberId, Long boardId, Long itemId) {
+        log.info("Get item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 읽기 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateReadPermission(board, member);
 
         // 동네 게시판인 경우 동네 검증
@@ -116,7 +113,7 @@ public class BoardItemService {
         }
 
         // 조회수 증가 (중복 방지)
-        increaseReadCount(itemId, memberSeq);
+        increaseReadCount(itemId, memberId);
 
         // 첨부파일 조회
         List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
@@ -125,10 +122,10 @@ public class BoardItemService {
         long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
 
         // 공감 여부
-        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbSeq(itemId, memberSeq);
+        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
 
         // DTO 변환
-        BoardItemDto dto = toDto(item, files, (int) commentCount, liked, memberSeq);
+        BoardItemDto dto = toDto(item, files, (int) commentCount, liked, memberId);
 
         return ApiResponse.success("게시글 조회 성공", dto);
     }
@@ -137,14 +134,14 @@ public class BoardItemService {
      * 게시글 작성
      */
     @Transactional
-    public ApiResponse<BoardItemDto> createItem(Long memberSeq, Long boardId, BoardItemRequest request) {
-        log.info("Create item for board: {}, member: {}", boardId, memberSeq);
+    public ApiResponse<BoardItemDto> createItem(UUID memberId, Long boardId, BoardItemRequest request) {
+        log.info("Create item for board: {}, member: {}", boardId, memberId);
 
         // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
 
         // 작성 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateWritePermission(board, member);
 
         // 필수값 검증
@@ -176,13 +173,13 @@ public class BoardItemService {
                 .likeCount(0)
                 .fixYn(fixYn)
                 .regUserPostcode(userPostcode)
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
 
         BoardItem savedItem = boardItemRepository.save(item);
 
-        BoardItemDto dto = toDto(savedItem, Collections.emptyList(), 0, false, memberSeq);
+        BoardItemDto dto = toDto(savedItem, Collections.emptyList(), 0, false, memberId);
 
         return ApiResponse.success("게시글 작성 성공", dto);
     }
@@ -191,16 +188,16 @@ public class BoardItemService {
      * 게시글 수정
      */
     @Transactional
-    public ApiResponse<BoardItemDto> updateItem(Long memberSeq, Long boardId, Long itemId, BoardItemRequest request) {
-        log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+    public ApiResponse<BoardItemDto> updateItem(UUID memberId, Long boardId, Long itemId, BoardItemRequest request) {
+        log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 수정 권한 검증
-        Member member = getMember(memberSeq);
-        validateModifyPermission(board, member, item.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateModifyPermission(board, member, item.getRegId());
 
         // 필수값 검증
         validateItemRequest(request);
@@ -218,7 +215,7 @@ public class BoardItemService {
         // 게시글 수정
         item.setTitle(request.getTitle());
         item.setContent(request.getContent());
-        item.setUpdateUserSeq(memberSeq);
+        item.setUpdateId(memberId);
         item.setUpdateDate(LocalDateTime.now());
 
         BoardItem savedItem = boardItemRepository.save(item);
@@ -226,9 +223,9 @@ public class BoardItemService {
         // 첨부파일 조회
         List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
         long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
-        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbSeq(itemId, memberSeq);
+        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
 
-        BoardItemDto dto = toDto(savedItem, files, (int) commentCount, liked, memberSeq);
+        BoardItemDto dto = toDto(savedItem, files, (int) commentCount, liked, memberId);
 
         return ApiResponse.success("게시글 수정 성공", dto);
     }
@@ -237,23 +234,23 @@ public class BoardItemService {
      * 게시글 삭제 (소프트 삭제)
      */
     @Transactional
-    public ApiResponse<Void> deleteItem(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+    public ApiResponse<Void> deleteItem(UUID memberId, Long boardId, Long itemId) {
+        log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 삭제 권한 검증
-        Member member = getMember(memberSeq);
-        validateDeletePermission(board, member, item.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateDeletePermission(board, member, item.getRegId());
 
         // 첨부파일 하드 삭제
         boardFileRepository.deleteByBiSeq(itemId);
 
         // 게시글 소프트 삭제
         item.setDeleteYn("Y");
-        item.setDeleteUserSeq(String.valueOf(memberSeq));
+        item.setDeleteId(memberId);
         item.setDeleteDate(LocalDateTime.now());
 
         boardItemRepository.save(item);
@@ -265,22 +262,22 @@ public class BoardItemService {
      * 게시글 공감
      */
     @Transactional
-    public ApiResponse<Integer> likeItem(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Like item: {} for member: {}", itemId, memberSeq);
+    public ApiResponse<Integer> likeItem(UUID memberId, Long boardId, Long itemId) {
+        log.info("Like item: {} for member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 이미 공감했는지 확인
-        if (boardItemLikeRepository.existsByBiSeqAndMbSeq(itemId, memberSeq)) {
+        if (boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId)) {
             throw new BoardException(BoardErrorCode.ALREADY_LIKED);
         }
 
         // 공감 저장
         BoardItemLike like = BoardItemLike.builder()
                 .biSeq(itemId)
-                .mbSeq(memberSeq)
+                .mbId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
         boardItemLikeRepository.save(like);
@@ -297,15 +294,15 @@ public class BoardItemService {
      * 게시글 공감 취소
      */
     @Transactional
-    public ApiResponse<Integer> unlikeItem(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Unlike item: {} for member: {}", itemId, memberSeq);
+    public ApiResponse<Integer> unlikeItem(UUID memberId, Long boardId, Long itemId) {
+        log.info("Unlike item: {} for member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 공감했는지 확인
-        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbSeq(itemId, memberSeq)
+        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbId(itemId, memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
 
         // 공감 삭제
@@ -341,8 +338,8 @@ public class BoardItemService {
         return item;
     }
 
-    private Member getMember(Long memberSeq) {
-        return memberRepository.findByMbSeq(memberSeq)
+    private Member getMember(UUID memberId) {
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
     }
 
@@ -358,18 +355,18 @@ public class BoardItemService {
         }
     }
 
-    private void validateModifyPermission(Board board, Member member, Long authorSeq) {
+    private void validateModifyPermission(Board board, Member member, UUID authorId) {
         // ADMIN은 항상 수정 가능
         if ("ADMIN".equals(member.getRole().name())) {
             return;
         }
         // USER 권한인 경우 작성자만 수정 가능
-        if (!member.getMbSeq().equals(authorSeq)) {
+        if (!member.getId().equals(authorId)) {
             throw new BoardException(BoardErrorCode.MODIFY_PERMISSION_DENIED);
         }
     }
 
-    private void validateDeletePermission(Board board, Member member, Long authorSeq) {
+    private void validateDeletePermission(Board board, Member member, UUID authorId) {
         // ADMIN 권한 게시판이면 ADMIN만 삭제 가능
         if ("ADMIN".equals(board.getBoDeleteAuth())) {
             if (!"ADMIN".equals(member.getRole().name())) {
@@ -377,7 +374,7 @@ public class BoardItemService {
             }
         } else {
             // USER 권한인 경우 작성자 또는 ADMIN만 삭제 가능
-            if (!"ADMIN".equals(member.getRole().name()) && !member.getMbSeq().equals(authorSeq)) {
+            if (!"ADMIN".equals(member.getRole().name()) && !member.getId().equals(authorId)) {
                 throw new BoardException(BoardErrorCode.DELETE_PERMISSION_DENIED);
             }
         }
@@ -403,11 +400,11 @@ public class BoardItemService {
         }
     }
 
-    private void increaseReadCount(Long itemId, Long memberSeq) {
-        if (!boardItemReadRepository.existsByBiSeqAndMbSeq(itemId, memberSeq)) {
+    private void increaseReadCount(Long itemId, UUID memberId) {
+        if (!boardItemReadRepository.existsByBiSeqAndMbId(itemId, memberId)) {
             BoardItemRead read = BoardItemRead.builder()
                     .biSeq(itemId)
-                    .mbSeq(memberSeq)
+                    .mbId(memberId)
                     .regDate(LocalDateTime.now())
                     .build();
             boardItemReadRepository.save(read);
@@ -447,8 +444,8 @@ public class BoardItemService {
         return result;
     }
 
-    private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, Long memberSeq) {
-        String authorName = memberRepository.findByMbSeq(item.getRegUserSeq())
+    private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, UUID memberId) {
+        String authorName = memberRepository.findById(item.getRegId())
                 .map(Member::getName)
                 .orElse("Unknown");
 
@@ -479,15 +476,15 @@ public class BoardItemService {
                 .likeCount(item.getLikeCount())
                 .fixYn(item.getFixYn())
                 .regUserPostcode(item.getRegUserPostcode())
-                .regUserSeq(item.getRegUserSeq())
+                .regId(item.getRegId())
                 .regUserName(authorName)
                 .regDate(item.getRegDate())
-                .updateUserSeq(item.getUpdateUserSeq())
+                .updateId(item.getUpdateId())
                 .updateDate(item.getUpdateDate())
                 .files(fileDtos)
                 .commentCount(commentCount)
                 .liked(liked)
-                .isAuthor(item.getRegUserSeq().equals(memberSeq))
+                .isAuthor(item.getRegId().equals(memberId))
                 .build();
     }
 }

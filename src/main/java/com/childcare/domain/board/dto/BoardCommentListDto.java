@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * MyBatis 댓글 조회용 DTO
@@ -26,12 +27,12 @@ public class BoardCommentListDto {
     private String deleteYn;
 
     // 작성자 정보
-    private Long regUserSeq;
+    private UUID regId;
     private String regUserName;
     private LocalDateTime regDate;
 
     // 수정 정보
-    private Long updateUserSeq;
+    private UUID updateId;
     private LocalDateTime updateDate;
 
     // 현재 사용자가 공감했는지 여부 (SQL에서 계산)

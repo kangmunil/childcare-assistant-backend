@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "leave_member")
@@ -17,14 +18,8 @@ import java.time.LocalDateTime;
 public class LeaveMember {
 
     @Id
-    @Column(name = "mb_seq")
-    private Long mbSeq;
-
-    @Column(name = "id")
-    private String id;
-
-    @Column(name = "password")
-    private String password;
+    @Column(name = "id", columnDefinition = "uuid")
+    private UUID id;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -50,8 +45,18 @@ public class LeaveMember {
     @Column(name = "invite_code")
     private String inviteCode;
 
-    @Column(name = "invite_by")
-    private Long invitedBy;
+    @Column(name = "invited_by", columnDefinition = "uuid")
+    private UUID invitedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    private Role role;
+
+    @Column(name = "provider", length = 20)
+    private String provider;
+
+    @Column(name = "provider_id")
+    private String providerId;
 
     @Column(name = "login_date")
     private LocalDateTime loginDate;
@@ -59,6 +64,6 @@ public class LeaveMember {
     @Column(name = "leave_date", nullable = false)
     private LocalDateTime leaveDate;
 
-    @Column(name = "reg_date", nullable = false)
-    private LocalDateTime regDate;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 }

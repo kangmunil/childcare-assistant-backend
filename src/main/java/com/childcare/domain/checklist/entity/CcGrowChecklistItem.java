@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "cc_grow_checklist_item")
@@ -21,6 +22,9 @@ public class CcGrowChecklistItem {
     @Column(name = "cc_gc_seq")
     private Long ccGcSeq;
 
+    @Column(name = "cc_gc_div", nullable = false)
+    private String ccGcDiv;
+
     @Column(name = "cc_gc_code", nullable = false)
     private String ccGcCode;
 
@@ -33,8 +37,8 @@ public class CcGrowChecklistItem {
     @Column(name = "cc_gc_end_month", nullable = false, length = 10)
     private String ccGcEndMonth;
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;
@@ -42,8 +46,8 @@ public class CcGrowChecklistItem {
     @Column(name = "delete_yn", length = 1)
     private String deleteYn;
 
-    @Column(name = "delete_user_seq")
-    private String deleteUserSeq;
+    @Column(name = "delete_id", columnDefinition = "uuid")
+    private UUID deleteId;
 
     @Column(name = "delete_date")
     private LocalDateTime deleteDate;

@@ -2,8 +2,6 @@ package com.childcare.domain.auth.controller;
 
 import com.childcare.domain.auth.dto.AuthRequest;
 import com.childcare.domain.auth.dto.AuthResponse;
-import com.childcare.domain.auth.dto.LoginRequest;
-import com.childcare.domain.auth.dto.RegisterRequest;
 import com.childcare.domain.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +14,12 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthController {
-    
+
     private final AuthService authService;
-    
+
+    /**
+     * 카카오 OAuth 로그인
+     */
     @PostMapping("/kakao")
     public ResponseEntity<AuthResponse> kakaoAuth(@Valid @RequestBody AuthRequest request) {
         try {
@@ -29,11 +30,15 @@ public class AuthController {
             log.error("Kakao authentication error", e);
             AuthResponse errorResponse = AuthResponse.builder()
                     .status("error")
+                    .message("카카오 로그인 실패: " + e.getMessage())
                     .build();
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
-    
+
+    /**
+     * 구글 OAuth 로그인
+     */
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> googleAuth(@Valid @RequestBody AuthRequest request) {
         try {
@@ -44,22 +49,21 @@ public class AuthController {
             log.error("Google authentication error", e);
             AuthResponse errorResponse = AuthResponse.builder()
                     .status("error")
+                    .message("구글 로그인 실패: " + e.getMessage())
                     .build();
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
-    
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("General login request received for user: {}", request.getId());
-        AuthResponse response = authService.login(request.getId(), request.getPassword());
-        return ResponseEntity.ok(response);
-    }
-    
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        log.info("Registration request received for user: {}", request.getId());
-        AuthResponse response = authService.register(request);
+
+    /**
+     * 테스트용 회원가입/로그인 (OAuth API 없이 테스트용)
+     */
+    @PostMapping("/test/register")
+    public ResponseEntity<AuthResponse> testRegister(
+            @RequestParam String email,
+            @RequestParam(defaultValue = "테스트유저") String name) {
+        log.info("Test registration request for email: {}", email);
+        AuthResponse response = authService.testRegister(email, name);
         return ResponseEntity.ok(response);
     }
 }

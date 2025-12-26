@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/children/{childId}/calendars")
@@ -25,16 +26,16 @@ public class CalendarController {
             @PathVariable Long childId,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String month) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get calendars request for child: {}, date: {}, month: {}", childId, date, month);
 
         ApiResponse<List<CalendarDto>> response;
         if (date != null && !date.isBlank()) {
-            response = calendarService.getCalendarsByChildAndDate(memberSeq, childId, date);
+            response = calendarService.getCalendarsByChildAndDate(memberId, childId, date);
         } else if (month != null && !month.isBlank()) {
-            response = calendarService.getCalendarsByChildAndMonth(memberSeq, childId, month);
+            response = calendarService.getCalendarsByChildAndMonth(memberId, childId, month);
         } else {
-            response = calendarService.getCalendarsByChild(memberSeq, childId);
+            response = calendarService.getCalendarsByChild(memberId, childId);
         }
         return ResponseEntity.ok(response);
     }
@@ -43,10 +44,10 @@ public class CalendarController {
     public ResponseEntity<ApiResponse<CalendarDto>> createCalendar(
             @PathVariable Long childId,
             @RequestBody CalendarRequest request) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Create calendar request for child: {}", childId);
 
-        ApiResponse<CalendarDto> response = calendarService.createCalendar(memberSeq, childId, request);
+        ApiResponse<CalendarDto> response = calendarService.createCalendar(memberId, childId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -55,10 +56,10 @@ public class CalendarController {
             @PathVariable Long childId,
             @PathVariable Long calendarId,
             @RequestBody CalendarRequest request) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Update calendar {} request for child: {}", calendarId, childId);
 
-        ApiResponse<CalendarDto> response = calendarService.updateCalendar(memberSeq, childId, calendarId, request);
+        ApiResponse<CalendarDto> response = calendarService.updateCalendar(memberId, childId, calendarId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -66,14 +67,14 @@ public class CalendarController {
     public ResponseEntity<ApiResponse<Void>> deleteCalendar(
             @PathVariable Long childId,
             @PathVariable Long calendarId) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Delete calendar {} request for child: {}", calendarId, childId);
 
-        ApiResponse<Void> response = calendarService.deleteCalendar(memberSeq, childId, calendarId);
+        ApiResponse<Void> response = calendarService.deleteCalendar(memberId, childId, calendarId);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/boards/{boardId}/items")
@@ -32,8 +33,8 @@ public class BoardItemController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        Long memberSeq = getMemberSeq();
-        log.info("Get item list for board: {}, member: {}", boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Get item list for board: {}, member: {}", boardId, memberId);
 
         BoardSearchRequest searchRequest = BoardSearchRequest.builder()
                 .searchType(searchType)
@@ -42,7 +43,7 @@ public class BoardItemController {
                 .size(size)
                 .build();
 
-        ApiResponse<Map<String, Object>> response = boardItemService.getItemList(memberSeq, boardId, searchRequest);
+        ApiResponse<Map<String, Object>> response = boardItemService.getItemList(memberId, boardId, searchRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -54,10 +55,10 @@ public class BoardItemController {
     public ResponseEntity<ApiResponse<BoardItemDto>> getItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Get item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Get item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        ApiResponse<BoardItemDto> response = boardItemService.getItem(memberSeq, boardId, itemId);
+        ApiResponse<BoardItemDto> response = boardItemService.getItem(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -69,10 +70,10 @@ public class BoardItemController {
     public ResponseEntity<ApiResponse<BoardItemDto>> createItem(
             @PathVariable Long boardId,
             @RequestBody BoardItemRequest request) {
-        Long memberSeq = getMemberSeq();
-        log.info("Create item for board: {}, member: {}", boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Create item for board: {}, member: {}", boardId, memberId);
 
-        ApiResponse<BoardItemDto> response = boardItemService.createItem(memberSeq, boardId, request);
+        ApiResponse<BoardItemDto> response = boardItemService.createItem(memberId, boardId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -85,10 +86,10 @@ public class BoardItemController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @RequestBody BoardItemRequest request) {
-        Long memberSeq = getMemberSeq();
-        log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        ApiResponse<BoardItemDto> response = boardItemService.updateItem(memberSeq, boardId, itemId, request);
+        ApiResponse<BoardItemDto> response = boardItemService.updateItem(memberId, boardId, itemId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -100,10 +101,10 @@ public class BoardItemController {
     public ResponseEntity<ApiResponse<Void>> deleteItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        ApiResponse<Void> response = boardItemService.deleteItem(memberSeq, boardId, itemId);
+        ApiResponse<Void> response = boardItemService.deleteItem(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -115,10 +116,10 @@ public class BoardItemController {
     public ResponseEntity<ApiResponse<Integer>> likeItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Like item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Like item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        ApiResponse<Integer> response = boardItemService.likeItem(memberSeq, boardId, itemId);
+        ApiResponse<Integer> response = boardItemService.likeItem(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -130,14 +131,14 @@ public class BoardItemController {
     public ResponseEntity<ApiResponse<Integer>> unlikeItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Unlike item: {} for board: {}, member: {}", itemId, boardId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Unlike item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        ApiResponse<Integer> response = boardItemService.unlikeItem(memberSeq, boardId, itemId);
+        ApiResponse<Integer> response = boardItemService.unlikeItem(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }

@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface ChecklistMapper {
@@ -23,9 +24,9 @@ public interface ChecklistMapper {
 
     // 체크 추가
     void insertCheck(@Param("childId") Long childId, @Param("itemId") Long itemId,
-                     @Param("gcDate") String gcDate, @Param("regUserSeq") Long regUserSeq);
+                     @Param("gcDate") String gcDate, @Param("regId") UUID regId);
 
     // 체크 삭제 (soft delete)
     void deleteCheck(@Param("childId") Long childId, @Param("itemId") Long itemId,
-                     @Param("deleteUserSeq") Long deleteUserSeq);
+                     @Param("deleteId") UUID deleteId);
 }

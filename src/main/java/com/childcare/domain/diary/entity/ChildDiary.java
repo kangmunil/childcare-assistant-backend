@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "child_diary")
@@ -17,8 +18,7 @@ import java.time.LocalDateTime;
 public class ChildDiary {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "child_diary_seq")
-    @SequenceGenerator(name = "child_diary_seq", sequenceName = "child_diary_di_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "di_seq")
     private Long diSeq;
 
@@ -43,8 +43,8 @@ public class ChildDiary {
     @Column(name = "reg_ai_yn", length = 1)
     private String regAiYn;
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;
@@ -52,8 +52,8 @@ public class ChildDiary {
     @Column(name = "delete_yn", length = 1)
     private String deleteYn;
 
-    @Column(name = "delete_user_seq")
-    private String deleteUserSeq;
+    @Column(name = "delete_id", columnDefinition = "uuid")
+    private UUID deleteId;
 
     @Column(name = "delete_date")
     private LocalDateTime deleteDate;

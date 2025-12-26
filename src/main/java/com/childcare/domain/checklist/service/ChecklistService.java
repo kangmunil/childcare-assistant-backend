@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,9 +33,9 @@ public class ChecklistService {
     /**
      * 체크된 항목 조회
      */
-    public ApiResponse<List<ChecklistDto>> getCheckedChecklists(Long memberSeq, Long childId, String div) {
+    public ApiResponse<List<ChecklistDto>> getCheckedChecklists(UUID memberId, Long childId, String div) {
         log.info("Fetching checked checklists for child: {}", childId);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<ChecklistDto> checklists = checklistMapper.findCheckedByChildId(childId, div);
 
@@ -44,9 +45,9 @@ public class ChecklistService {
     /**
      * 미체크된 항목 조회
      */
-    public ApiResponse<List<ChecklistDto>> getUncheckedChecklists(Long memberSeq, Long childId, String div) {
+    public ApiResponse<List<ChecklistDto>> getUncheckedChecklists(UUID memberId, Long childId, String div) {
         log.info("Fetching unchecked checklists for child: {}", childId);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<ChecklistDto> checklists = checklistMapper.findUncheckedByChildId(childId, div);
 
@@ -57,14 +58,14 @@ public class ChecklistService {
      * 체크 추가
      */
     @Transactional
-    public ApiResponse<Void> addCheck(Long memberSeq, Long childId, Long itemId) {
+    public ApiResponse<Void> addCheck(UUID memberId, Long childId, Long itemId) {
         log.info("Adding check for child: {}, item: {}", childId, itemId);
 
         // 자녀 존재 여부 확인
         Child child = childMapper.findActiveChildById(childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         // 항목 존재 여부 확인
         if (!checklistMapper.existsChecklistItem(itemId)) {
@@ -77,7 +78,7 @@ public class ChecklistService {
         }
 
         String gcDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        checklistMapper.insertCheck(childId, itemId, gcDate, memberSeq);
+        checklistMapper.insertCheck(childId, itemId, gcDate, memberId);
 
         return ApiResponse.success("체크리스트 체크 완료", null);
     }
@@ -86,14 +87,14 @@ public class ChecklistService {
      * 체크 삭제
      */
     @Transactional
-    public ApiResponse<Void> removeCheck(Long memberSeq, Long childId, Long itemId) {
+    public ApiResponse<Void> removeCheck(UUID memberId, Long childId, Long itemId) {
         log.info("Removing check for child: {}, item: {}", childId, itemId);
 
         // 자녀 존재 여부 확인
         Child child = childMapper.findActiveChildById(childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         // 항목 존재 여부 확인
         if (!checklistMapper.existsChecklistItem(itemId)) {
@@ -105,7 +106,7 @@ public class ChecklistService {
             throw new ChecklistException(ChecklistErrorCode.NOT_CHECKED);
         }
 
-        checklistMapper.deleteCheck(childId, itemId, memberSeq);
+        checklistMapper.deleteCheck(childId, itemId, memberId);
 
         return ApiResponse.success("체크리스트 체크 해제 완료", null);
     }

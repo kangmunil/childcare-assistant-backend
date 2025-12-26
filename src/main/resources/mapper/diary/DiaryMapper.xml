@@ -11,10 +11,10 @@
         <result property="amount" column="amount"/>
         <result property="memo" column="memo"/>
         <result property="regAiYn" column="reg_ai_yn"/>
-        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regDate" column="reg_date"/>
         <result property="deleteYn" column="delete_yn"/>
-        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="deleteDate" column="delete_date"/>
     </resultMap>
 
@@ -24,10 +24,10 @@
         <result property="ccDiCode" column="cc_di_code"/>
         <result property="ccDiName" column="cc_di_name"/>
         <result property="ccDiUnit" column="cc_di_unit"/>
-        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regDate" column="reg_date"/>
         <result property="deleteYn" column="delete_yn"/>
-        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="deleteDate" column="delete_date"/>
     </resultMap>
 

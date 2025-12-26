@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "parent")
@@ -19,10 +20,10 @@ public class Parent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "pa_seq")
-    private Integer paSeq;
+    private Long paSeq;
 
-    @Column(name = "mb_seq", nullable = false)
-    private Long mbSeq;
+    @Column(name = "mb_id", nullable = false, columnDefinition = "uuid")
+    private UUID mbId;
 
     @Column(name = "ch_seq", nullable = false)
     private Long chSeq;
@@ -46,8 +47,8 @@ public class Parent {
     @Builder.Default
     private String authDelete = "1";
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;

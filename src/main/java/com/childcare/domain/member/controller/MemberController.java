@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/members")
 @RequiredArgsConstructor
@@ -25,10 +27,10 @@ public class MemberController {
      */
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<MemberDto>> getMyInfo() {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        log.info("Get my info request for memberSeq: {}", memberSeq);
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        log.info("Get my info request for memberId: {}", memberId);
 
-        ApiResponse<MemberDto> response = memberService.getMyInfo(memberSeq);
+        ApiResponse<MemberDto> response = memberService.getMyInfo(memberId);
         return ResponseEntity.ok(response);
     }
 
@@ -39,10 +41,10 @@ public class MemberController {
     @PutMapping("/me")
     public ResponseEntity<ApiResponse<MemberDto>> updateMyInfo(
             @Valid @RequestBody MemberUpdateRequest request) {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        log.info("Update my info request for memberSeq: {}", memberSeq);
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        log.info("Update my info request for memberId: {}", memberId);
 
-        ApiResponse<MemberDto> response = memberService.updateMyInfo(memberSeq, request);
+        ApiResponse<MemberDto> response = memberService.updateMyInfo(memberId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -52,10 +54,10 @@ public class MemberController {
      */
     @DeleteMapping("/me")
     public ResponseEntity<ApiResponse<Void>> withdraw() {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        log.info("Withdraw request for memberSeq: {}", memberSeq);
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        log.info("Withdraw request for memberId: {}", memberId);
 
-        ApiResponse<Void> response = memberService.withdraw(memberSeq);
+        ApiResponse<Void> response = memberService.withdraw(memberId);
         return ResponseEntity.ok(response);
     }
 }

@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/boards/{boardId}/items/{itemId}/files")
@@ -34,10 +35,10 @@ public class BoardFileController {
     public ResponseEntity<ApiResponse<List<BoardFileDto>>> getFiles(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Get files for item: {}, member: {}", itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Get files for item: {}, member: {}", itemId, memberId);
 
-        ApiResponse<List<BoardFileDto>> response = boardFileService.getFiles(memberSeq, boardId, itemId);
+        ApiResponse<List<BoardFileDto>> response = boardFileService.getFiles(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -50,10 +51,10 @@ public class BoardFileController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @RequestParam("files") List<MultipartFile> files) {
-        Long memberSeq = getMemberSeq();
-        log.info("Upload files for item: {}, member: {}, count: {}", itemId, memberSeq, files.size());
+        UUID memberId = getMemberId();
+        log.info("Upload files for item: {}, member: {}, count: {}", itemId, memberId, files.size());
 
-        ApiResponse<List<BoardFileDto>> response = boardFileService.uploadFiles(memberSeq, boardId, itemId, files);
+        ApiResponse<List<BoardFileDto>> response = boardFileService.uploadFiles(memberId, boardId, itemId, files);
         return ResponseEntity.ok(response);
     }
 
@@ -66,10 +67,10 @@ public class BoardFileController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long fileId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberId);
 
-        Resource resource = boardFileService.downloadFile(memberSeq, boardId, itemId, fileId);
+        Resource resource = boardFileService.downloadFile(memberId, boardId, itemId, fileId);
         BoardFile fileInfo = boardFileService.getFileInfo(fileId);
 
         String encodedFilename = URLEncoder.encode(fileInfo.getOrgFilename(), StandardCharsets.UTF_8)
@@ -90,14 +91,14 @@ public class BoardFileController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long fileId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Delete file: {} for item: {}, member: {}", fileId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Delete file: {} for item: {}, member: {}", fileId, itemId, memberId);
 
-        ApiResponse<Void> response = boardFileService.deleteFile(memberSeq, boardId, itemId, fileId);
+        ApiResponse<Void> response = boardFileService.deleteFile(memberId, boardId, itemId, fileId);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }

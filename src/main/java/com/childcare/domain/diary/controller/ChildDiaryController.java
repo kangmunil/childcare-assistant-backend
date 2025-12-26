@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/children/{childId}/diaries")
@@ -26,14 +27,14 @@ public class ChildDiaryController {
     public ResponseEntity<ApiResponse<List<ChildDiaryDto>>> getDiaries(
             @PathVariable Long childId,
             @RequestParam(required = false) String date) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get diaries request for child: {}, date: {}", childId, date);
 
         ApiResponse<List<ChildDiaryDto>> response;
         if (date != null && !date.isBlank()) {
-            response = childDiaryService.getDiariesByChildAndDate(memberSeq, childId, date);
+            response = childDiaryService.getDiariesByChildAndDate(memberId, childId, date);
         } else {
-            response = childDiaryService.getDiariesByChild(memberSeq, childId);
+            response = childDiaryService.getDiariesByChild(memberId, childId);
         }
         return ResponseEntity.ok(response);
     }
@@ -42,10 +43,10 @@ public class ChildDiaryController {
     public ResponseEntity<ApiResponse<List<ChildDiaryDto>>> createDiary(
             @PathVariable Long childId,
             @RequestBody ChildDiaryRequest request) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Create diary request for child: {}", childId);
 
-        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.createDiary(memberSeq, childId, request);
+        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.createDiary(memberId, childId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -54,10 +55,10 @@ public class ChildDiaryController {
             @PathVariable Long childId,
             @PathVariable Long diaryId,
             @RequestBody ChildDiaryRequest request) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Update diary {} request for child: {}", diaryId, childId);
 
-        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.updateDiary(memberSeq, childId, diaryId, request);
+        ApiResponse<List<ChildDiaryDto>> response = childDiaryService.updateDiary(memberId, childId, diaryId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -65,10 +66,10 @@ public class ChildDiaryController {
     public ResponseEntity<ApiResponse<Void>> deleteDiary(
             @PathVariable Long childId,
             @PathVariable Long diaryId) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Delete diary {} request for child: {}", diaryId, childId);
 
-        ApiResponse<Void> response = childDiaryService.deleteDiary(memberSeq, childId, diaryId);
+        ApiResponse<Void> response = childDiaryService.deleteDiary(memberId, childId, diaryId);
         return ResponseEntity.ok(response);
     }
 
@@ -76,10 +77,10 @@ public class ChildDiaryController {
     public ResponseEntity<ApiResponse<DiarySummaryDto>> getDailySummary(
             @PathVariable Long childId,
             @RequestParam String date) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get daily summary request for child: {}, date: {}", childId, date);
 
-        ApiResponse<DiarySummaryDto> response = childDiaryService.getDailySummary(memberSeq, childId, date);
+        ApiResponse<DiarySummaryDto> response = childDiaryService.getDailySummary(memberId, childId, date);
         return ResponseEntity.ok(response);
     }
 
@@ -95,14 +96,14 @@ public class ChildDiaryController {
             @RequestParam String type,
             @RequestParam String startDate,
             @RequestParam String endDate) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get diary stats request for child: {}, type: {}, from {} to {}", childId, type, startDate, endDate);
 
-        ApiResponse<DiaryStatDto> response = childDiaryService.getDiaryStats(memberSeq, childId, type, startDate, endDate);
+        ApiResponse<DiaryStatDto> response = childDiaryService.getDiaryStats(memberId, childId, type, startDate, endDate);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }
