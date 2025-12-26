@@ -66,16 +66,16 @@ public class BoardFileService {
      * 파일 업로드
      */
     @Transactional
-    public ApiResponse<List<BoardFileDto>> uploadFiles(Long memberSeq, Long boardId, Long itemId, List<MultipartFile> files) {
-        log.info("Upload files for item: {}, member: {}, file count: {}", itemId, memberSeq, files.size());
+    public ApiResponse<List<BoardFileDto>> uploadFiles(UUID memberId, Long boardId, Long itemId, List<MultipartFile> files) {
+        log.info("Upload files for item: {}, member: {}, file count: {}", itemId, memberId, files.size());
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 작성 권한 검증 (게시글 작성자 또는 ADMIN)
-        Member member = getMember(memberSeq);
-        validateFileUploadPermission(board, member, item.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateFileUploadPermission(board, member, item.getRegId());
 
         // 파일 개수 제한 확인
         int maxFileCount = parseMaxFileCount(board.getBoFileCount());
@@ -110,7 +110,7 @@ public class BoardFileService {
             }
 
             // 파일 저장
-            BoardFileDto savedFile = saveFile(file, itemId, memberSeq, board.getBoCode());
+            BoardFileDto savedFile = saveFile(file, itemId, memberId, board.getBoCode());
             uploadedFiles.add(savedFile);
         }
 
@@ -120,15 +120,15 @@ public class BoardFileService {
     /**
      * 파일 다운로드
      */
-    public Resource downloadFile(Long memberSeq, Long boardId, Long itemId, Long fileId) {
-        log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberSeq);
+    public Resource downloadFile(UUID memberId, Long boardId, Long itemId, Long fileId) {
+        log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         validateItem(itemId);
 
         // 읽기 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateReadPermission(board, member);
 
         // 파일 조회
@@ -158,16 +158,16 @@ public class BoardFileService {
      * 파일 삭제
      */
     @Transactional
-    public ApiResponse<Void> deleteFile(Long memberSeq, Long boardId, Long itemId, Long fileId) {
-        log.info("Delete file: {} for item: {}, member: {}", fileId, itemId, memberSeq);
+    public ApiResponse<Void> deleteFile(UUID memberId, Long boardId, Long itemId, Long fileId) {
+        log.info("Delete file: {} for item: {}, member: {}", fileId, itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 삭제 권한 검증
-        Member member = getMember(memberSeq);
-        validateFileDeletePermission(board, member, item.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateFileDeletePermission(board, member, item.getRegId());
 
         // 파일 조회
         BoardFile boardFile = boardFileRepository.findById(fileId)
@@ -195,15 +195,15 @@ public class BoardFileService {
     /**
      * 파일 목록 조회
      */
-    public ApiResponse<List<BoardFileDto>> getFiles(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Get files for item: {}, member: {}", itemId, memberSeq);
+    public ApiResponse<List<BoardFileDto>> getFiles(UUID memberId, Long boardId, Long itemId) {
+        log.info("Get files for item: {}, member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         validateItem(itemId);
 
         // 읽기 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateReadPermission(board, member);
 
         List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
@@ -222,7 +222,7 @@ public class BoardFileService {
                 .orElseThrow(() -> new BoardException(BoardErrorCode.FILE_NOT_FOUND));
     }
 
-    private BoardFileDto saveFile(MultipartFile file, Long itemId, Long memberSeq, String boCode) {
+    private BoardFileDto saveFile(MultipartFile file, Long itemId, UUID memberId, String boCode) {
         try {
             String originalFilename = file.getOriginalFilename();
             String extension = getFileExtension(originalFilename);
@@ -247,7 +247,7 @@ public class BoardFileService {
                     .bfPath(uploadPath.toString())
                     .bfExtension(extension)
                     .bfSize((int) file.getSize())
-                    .regUserSeq(memberSeq)
+                    .regId(memberId)
                     .regDate(LocalDateTime.now())
                     .build();
 
@@ -309,8 +309,8 @@ public class BoardFileService {
         return item;
     }
 
-    private Member getMember(Long memberSeq) {
-        return memberRepository.findByMbSeq(memberSeq)
+    private Member getMember(UUID memberId) {
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
     }
 
@@ -320,24 +320,24 @@ public class BoardFileService {
         }
     }
 
-    private void validateFileUploadPermission(Board board, Member member, Long itemAuthorSeq) {
+    private void validateFileUploadPermission(Board board, Member member, UUID itemAuthorId) {
         // ADMIN은 항상 업로드 가능
         if ("ADMIN".equals(member.getRole().name())) {
             return;
         }
         // 게시글 작성자만 파일 업로드 가능
-        if (!member.getMbSeq().equals(itemAuthorSeq)) {
+        if (!member.getId().equals(itemAuthorId)) {
             throw new BoardException(BoardErrorCode.FILE_UPLOAD_DENIED);
         }
     }
 
-    private void validateFileDeletePermission(Board board, Member member, Long itemAuthorSeq) {
+    private void validateFileDeletePermission(Board board, Member member, UUID itemAuthorId) {
         // ADMIN은 항상 삭제 가능
         if ("ADMIN".equals(member.getRole().name())) {
             return;
         }
         // 게시글 작성자만 파일 삭제 가능
-        if (!member.getMbSeq().equals(itemAuthorSeq)) {
+        if (!member.getId().equals(itemAuthorId)) {
             throw new BoardException(BoardErrorCode.FILE_DELETE_DENIED);
         }
     }

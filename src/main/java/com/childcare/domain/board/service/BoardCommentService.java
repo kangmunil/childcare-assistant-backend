@@ -39,19 +39,19 @@ public class BoardCommentService {
      * - DB에서 정렬된 상태로 조회 (고정댓글 > 부모-자식 그룹핑 > 등록일순)
      * - depth는 1까지만 지원 (댓글 + 대댓글)
      */
-    public ApiResponse<List<BoardCommentDto>> getComments(Long memberSeq, Long boardId, Long itemId) {
-        log.info("Get comments for item: {}, member: {}", itemId, memberSeq);
+    public ApiResponse<List<BoardCommentDto>> getComments(UUID memberId, Long boardId, Long itemId) {
+        log.info("Get comments for item: {}, member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 읽기 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateReadPermission(board, member);
 
         // MyBatis로 댓글 목록 조회 (작성자명, 공감여부 포함)
-        List<BoardCommentListDto> comments = boardMapper.getComments(itemId, memberSeq);
+        List<BoardCommentListDto> comments = boardMapper.getComments(itemId, memberId);
 
         // 부모 댓글과 대댓글 그룹핑
         Map<Long, List<BoardCommentListDto>> repliesMap = comments.stream()
@@ -64,9 +64,9 @@ public class BoardCommentService {
                 .map(parent -> {
                     List<BoardCommentDto> replies = repliesMap.getOrDefault(parent.getId(), Collections.emptyList())
                             .stream()
-                            .map(reply -> toDto(reply, memberSeq, item.getRegUserSeq()))
+                            .map(reply -> toDto(reply, memberId, item.getRegId()))
                             .collect(Collectors.toList());
-                    return toDto(parent, memberSeq, item.getRegUserSeq(), replies);
+                    return toDto(parent, memberId, item.getRegId(), replies);
                 })
                 .collect(Collectors.toList());
 
@@ -77,15 +77,15 @@ public class BoardCommentService {
      * 댓글 작성
      */
     @Transactional
-    public ApiResponse<BoardCommentDto> createComment(Long memberSeq, Long boardId, Long itemId, BoardCommentRequest request) {
-        log.info("Create comment for item: {}, member: {}", itemId, memberSeq);
+    public ApiResponse<BoardCommentDto> createComment(UUID memberId, Long boardId, Long itemId, BoardCommentRequest request) {
+        log.info("Create comment for item: {}, member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItem(itemId);
 
         // 작성 권한 검증
-        Member member = getMember(memberSeq);
+        Member member = getMember(memberId);
         validateWritePermission(board, member);
 
         // 필수값 검증
@@ -110,7 +110,7 @@ public class BoardCommentService {
 
             // 비밀 댓글에 대댓글 작성 권한 검증
             if ("Y".equals(parentComment.getSecretYn())) {
-                if (!canAccessSecretComment(memberSeq, item.getRegUserSeq(), parentComment.getRegUserSeq())) {
+                if (!canAccessSecretComment(memberId, item.getRegId(), parentComment.getRegId())) {
                     throw new BoardException(BoardErrorCode.SECRET_COMMENT_REPLY_DENIED);
                 }
             }
@@ -134,13 +134,13 @@ public class BoardCommentService {
                 .likeCount(0)
                 .secretYn(request.getSecretYn())
                 .fixYn(fixYn)
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
 
         BoardComment savedComment = boardCommentRepository.save(comment);
 
-        BoardCommentDto dto = toDto(savedComment, memberSeq, item.getRegUserSeq(), Collections.emptyList());
+        BoardCommentDto dto = toDto(savedComment, memberId, item.getRegId(), Collections.emptyList());
 
         return ApiResponse.success("댓글 작성 성공", dto);
     }
@@ -149,8 +149,8 @@ public class BoardCommentService {
      * 댓글 수정
      */
     @Transactional
-    public ApiResponse<BoardCommentDto> updateComment(Long memberSeq, Long boardId, Long itemId, Long commentId, BoardCommentRequest request) {
-        log.info("Update comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+    public ApiResponse<BoardCommentDto> updateComment(UUID memberId, Long boardId, Long itemId, Long commentId, BoardCommentRequest request) {
+        log.info("Update comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
@@ -158,8 +158,8 @@ public class BoardCommentService {
         BoardComment comment = validateComment(commentId);
 
         // 수정 권한 검증
-        Member member = getMember(memberSeq);
-        validateModifyPermission(board, member, comment.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateModifyPermission(board, member, comment.getRegId());
 
         // 필수값 검증
         validateCommentRequest(request);
@@ -177,12 +177,12 @@ public class BoardCommentService {
         // 댓글 수정
         comment.setContent(request.getContent());
         comment.setSecretYn(request.getSecretYn());
-        comment.setUpdateUserSeq(memberSeq);
+        comment.setUpdateId(memberId);
         comment.setUpdateDate(LocalDateTime.now());
 
         BoardComment savedComment = boardCommentRepository.save(comment);
 
-        BoardCommentDto dto = toDto(savedComment, memberSeq, item.getRegUserSeq(), Collections.emptyList());
+        BoardCommentDto dto = toDto(savedComment, memberId, item.getRegId(), Collections.emptyList());
 
         return ApiResponse.success("댓글 수정 성공", dto);
     }
@@ -191,8 +191,8 @@ public class BoardCommentService {
      * 댓글 삭제 (소프트 삭제)
      */
     @Transactional
-    public ApiResponse<Void> deleteComment(Long memberSeq, Long boardId, Long itemId, Long commentId) {
-        log.info("Delete comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+    public ApiResponse<Void> deleteComment(UUID memberId, Long boardId, Long itemId, Long commentId) {
+        log.info("Delete comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
         // 게시판 및 댓글 조회
         Board board = validateBoard(boardId);
@@ -200,12 +200,12 @@ public class BoardCommentService {
         BoardComment comment = validateComment(commentId);
 
         // 삭제 권한 검증
-        Member member = getMember(memberSeq);
-        validateDeletePermission(board, member, comment.getRegUserSeq());
+        Member member = getMember(memberId);
+        validateDeletePermission(board, member, comment.getRegId());
 
         // 댓글 소프트 삭제
         comment.setDeleteYn("Y");
-        comment.setDeleteUserSeq(String.valueOf(memberSeq));
+        comment.setDeleteId(memberId);
         comment.setDeleteDate(LocalDateTime.now());
 
         boardCommentRepository.save(comment);
@@ -217,8 +217,8 @@ public class BoardCommentService {
      * 댓글 공감
      */
     @Transactional
-    public ApiResponse<Integer> likeComment(Long memberSeq, Long boardId, Long itemId, Long commentId) {
-        log.info("Like comment: {} for member: {}", commentId, memberSeq);
+    public ApiResponse<Integer> likeComment(UUID memberId, Long boardId, Long itemId, Long commentId) {
+        log.info("Like comment: {} for member: {}", commentId, memberId);
 
         // 게시판 및 댓글 조회
         validateBoard(boardId);
@@ -226,14 +226,14 @@ public class BoardCommentService {
         BoardComment comment = validateComment(commentId);
 
         // 이미 공감했는지 확인
-        if (boardCommentLikeRepository.existsByBcSeqAndMbSeq(commentId, memberSeq)) {
+        if (boardCommentLikeRepository.existsByBcSeqAndMbId(commentId, memberId)) {
             throw new BoardException(BoardErrorCode.ALREADY_LIKED);
         }
 
         // 공감 저장
         BoardCommentLike like = BoardCommentLike.builder()
                 .bcSeq(commentId)
-                .mbSeq(memberSeq)
+                .mbId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
         boardCommentLikeRepository.save(like);
@@ -250,8 +250,8 @@ public class BoardCommentService {
      * 댓글 공감 취소
      */
     @Transactional
-    public ApiResponse<Integer> unlikeComment(Long memberSeq, Long boardId, Long itemId, Long commentId) {
-        log.info("Unlike comment: {} for member: {}", commentId, memberSeq);
+    public ApiResponse<Integer> unlikeComment(UUID memberId, Long boardId, Long itemId, Long commentId) {
+        log.info("Unlike comment: {} for member: {}", commentId, memberId);
 
         // 게시판 및 댓글 조회
         validateBoard(boardId);
@@ -259,7 +259,7 @@ public class BoardCommentService {
         BoardComment comment = validateComment(commentId);
 
         // 공감했는지 확인
-        BoardCommentLike like = boardCommentLikeRepository.findByBcSeqAndMbSeq(commentId, memberSeq)
+        BoardCommentLike like = boardCommentLikeRepository.findByBcSeqAndMbId(commentId, memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
 
         // 공감 삭제
@@ -305,8 +305,8 @@ public class BoardCommentService {
         return comment;
     }
 
-    private Member getMember(Long memberSeq) {
-        return memberRepository.findByMbSeq(memberSeq)
+    private Member getMember(UUID memberId) {
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
     }
 
@@ -322,29 +322,29 @@ public class BoardCommentService {
         }
     }
 
-    private void validateModifyPermission(Board board, Member member, Long authorSeq) {
+    private void validateModifyPermission(Board board, Member member, UUID authorId) {
         if ("ADMIN".equals(member.getRole().name())) {
             return;
         }
-        if (!member.getMbSeq().equals(authorSeq)) {
+        if (!member.getId().equals(authorId)) {
             throw new BoardException(BoardErrorCode.MODIFY_PERMISSION_DENIED);
         }
     }
 
-    private void validateDeletePermission(Board board, Member member, Long authorSeq) {
+    private void validateDeletePermission(Board board, Member member, UUID authorId) {
         if ("ADMIN".equals(board.getBoDeleteAuth())) {
             if (!"ADMIN".equals(member.getRole().name())) {
                 throw new BoardException(BoardErrorCode.DELETE_PERMISSION_DENIED);
             }
         } else {
-            if (!"ADMIN".equals(member.getRole().name()) && !member.getMbSeq().equals(authorSeq)) {
+            if (!"ADMIN".equals(member.getRole().name()) && !member.getId().equals(authorId)) {
                 throw new BoardException(BoardErrorCode.DELETE_PERMISSION_DENIED);
             }
         }
     }
 
-    private boolean canAccessSecretComment(Long memberSeq, Long itemAuthorSeq, Long commentAuthorSeq) {
-        return memberSeq.equals(itemAuthorSeq) || memberSeq.equals(commentAuthorSeq);
+    private boolean canAccessSecretComment(UUID memberId, UUID itemAuthorId, UUID commentAuthorId) {
+        return memberId.equals(itemAuthorId) || memberId.equals(commentAuthorId);
     }
 
     private void validateCommentRequest(BoardCommentRequest request) {
@@ -356,20 +356,20 @@ public class BoardCommentService {
     /**
      * 대댓글용 toDto (replies 없음) - BoardComment 엔티티용
      */
-    private BoardCommentDto toDto(BoardComment comment, Long memberSeq, Long itemAuthorSeq) {
-        return toDto(comment, memberSeq, itemAuthorSeq, Collections.emptyList());
+    private BoardCommentDto toDto(BoardComment comment, UUID memberId, UUID itemAuthorId) {
+        return toDto(comment, memberId, itemAuthorId, Collections.emptyList());
     }
 
     /**
      * 부모 댓글용 toDto (replies 포함) - BoardComment 엔티티용
      */
-    private BoardCommentDto toDto(BoardComment comment, Long memberSeq, Long itemAuthorSeq, List<BoardCommentDto> replies) {
+    private BoardCommentDto toDto(BoardComment comment, UUID memberId, UUID itemAuthorId, List<BoardCommentDto> replies) {
         boolean isDeleted = "Y".equals(comment.getDeleteYn());
         boolean isSecret = "Y".equals(comment.getSecretYn());
-        boolean canAccess = !isSecret || canAccessSecretComment(memberSeq, itemAuthorSeq, comment.getRegUserSeq());
-        boolean liked = boardCommentLikeRepository.existsByBcSeqAndMbSeq(comment.getBcSeq(), memberSeq);
+        boolean canAccess = !isSecret || canAccessSecretComment(memberId, itemAuthorId, comment.getRegId());
+        boolean liked = boardCommentLikeRepository.existsByBcSeqAndMbId(comment.getBcSeq(), memberId);
 
-        String authorName = memberRepository.findByMbSeq(comment.getRegUserSeq())
+        String authorName = memberRepository.findById(comment.getRegId())
                 .map(Member::getName)
                 .orElse("Unknown");
 
@@ -392,14 +392,14 @@ public class BoardCommentService {
                 .secretYn(comment.getSecretYn())
                 .fixYn(comment.getFixYn())
                 .deleteYn(comment.getDeleteYn())
-                .regUserSeq(isDeleted ? null : comment.getRegUserSeq())
+                .regId(isDeleted ? null : comment.getRegId())
                 .regUserName(authorName)
                 .regDate(comment.getRegDate())
-                .updateUserSeq(comment.getUpdateUserSeq())
+                .updateId(comment.getUpdateId())
                 .updateDate(comment.getUpdateDate())
                 .replies(replies)
                 .liked(liked)
-                .isAuthor(comment.getRegUserSeq().equals(memberSeq))
+                .isAuthor(comment.getRegId().equals(memberId))
                 .accessible(canAccess)
                 .deleted(isDeleted)
                 .build();
@@ -408,17 +408,17 @@ public class BoardCommentService {
     /**
      * 대댓글용 toDto (replies 없음) - MyBatis DTO용
      */
-    private BoardCommentDto toDto(BoardCommentListDto comment, Long memberSeq, Long itemAuthorSeq) {
-        return toDto(comment, memberSeq, itemAuthorSeq, Collections.emptyList());
+    private BoardCommentDto toDto(BoardCommentListDto comment, UUID memberId, UUID itemAuthorId) {
+        return toDto(comment, memberId, itemAuthorId, Collections.emptyList());
     }
 
     /**
      * 부모 댓글용 toDto (replies 포함) - MyBatis DTO용
      */
-    private BoardCommentDto toDto(BoardCommentListDto comment, Long memberSeq, Long itemAuthorSeq, List<BoardCommentDto> replies) {
+    private BoardCommentDto toDto(BoardCommentListDto comment, UUID memberId, UUID itemAuthorId, List<BoardCommentDto> replies) {
         boolean isDeleted = "Y".equals(comment.getDeleteYn());
         boolean isSecret = "Y".equals(comment.getSecretYn());
-        boolean canAccess = !isSecret || canAccessSecretComment(memberSeq, itemAuthorSeq, comment.getRegUserSeq());
+        boolean canAccess = !isSecret || canAccessSecretComment(memberId, itemAuthorId, comment.getRegId());
 
         String authorName = comment.getRegUserName() != null ? comment.getRegUserName() : "Unknown";
 
@@ -441,14 +441,14 @@ public class BoardCommentService {
                 .secretYn(comment.getSecretYn())
                 .fixYn(comment.getFixYn())
                 .deleteYn(comment.getDeleteYn())
-                .regUserSeq(isDeleted ? null : comment.getRegUserSeq())
+                .regId(isDeleted ? null : comment.getRegId())
                 .regUserName(authorName)
                 .regDate(comment.getRegDate())
-                .updateUserSeq(comment.getUpdateUserSeq())
+                .updateId(comment.getUpdateId())
                 .updateDate(comment.getUpdateDate())
                 .replies(replies)
                 .liked(comment.isLiked())
-                .isAuthor(comment.getRegUserSeq().equals(memberSeq))
+                .isAuthor(comment.getRegId().equals(memberId))
                 .accessible(canAccess)
                 .deleted(isDeleted)
                 .build();

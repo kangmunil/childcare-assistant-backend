@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class ChecklistDto {
     private Long childId;
     private Long itemId;
+    private String itemDiv;
     private String itemCode;
     private String itemContent;
     private String startMonth;

@@ -11,21 +11,29 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @Slf4j
 public class JwtUtil {
-    
+
     private final SecretKey secretKey;
     private final long accessTokenValidityInMilliseconds;
-    
-    public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890}") String secret,
-                   @Value("${jwt.access-token-validity-in-seconds:3600}") long accessTokenValidityInSeconds) {
+    private final long refreshTokenValidityInMilliseconds;
+
+    public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890123456789012345678901234567890}") String secret,
+                   @Value("${jwt.access-token-validity-in-seconds:3600}") long accessTokenValidityInSeconds,
+                   @Value("${jwt.refresh-token-validity-in-seconds:604800}") long refreshTokenValidityInSeconds) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidityInMilliseconds = accessTokenValidityInSeconds * 1000;
+        this.refreshTokenValidityInMilliseconds = refreshTokenValidityInSeconds * 1000;
     }
-    
-    public String generateToken(Long userId, String email, String role) {
+
+    public long getRefreshTokenValidityInMilliseconds() {
+        return refreshTokenValidityInMilliseconds;
+    }
+
+    public String generateToken(UUID userId, String email, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenValidityInMilliseconds);
 
@@ -38,17 +46,46 @@ public class JwtUtil {
                 .signWith(secretKey)
                 .compact();
     }
-    
-    public Long getUserIdFromToken(String token) {
+
+    public String generateRefreshToken(UUID userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
+
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("type", "refresh")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    public boolean validateRefreshToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            String type = claims.get("type", String.class);
+            return "refresh".equals(type);
+        } catch (Exception e) {
+            log.error("Refresh token validation failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public UUID getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(secretKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        
-        return Long.parseLong(claims.getSubject());
+
+        return UUID.fromString(claims.getSubject());
     }
-    
+
     public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(secretKey)
@@ -68,7 +105,7 @@ public class JwtUtil {
 
         return claims.get("role", String.class);
     }
-    
+
     public boolean validateToken(String token) {
         try {
             Jwts.parser()

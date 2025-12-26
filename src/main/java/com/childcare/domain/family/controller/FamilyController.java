@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/children/{childId}/family")
@@ -24,8 +25,8 @@ public class FamilyController {
      */
     @GetMapping
     public ApiResponse<List<FamilyMemberDto>> getFamilyMembers(@PathVariable Long childId) {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        return familyService.getFamilyMembers(memberSeq, childId);
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        return familyService.getFamilyMembers(memberId, childId);
     }
 
     /**
@@ -36,8 +37,8 @@ public class FamilyController {
     public ApiResponse<FamilyMemberDto> addFamilyMember(
             @PathVariable Long childId,
             @RequestBody FamilyShareRequest request) {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        return familyService.addFamilyMember(memberSeq, childId, request);
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        return familyService.addFamilyMember(memberId, childId, request);
     }
 
     /**
@@ -47,9 +48,9 @@ public class FamilyController {
     @DeleteMapping("/{memberId}")
     public ApiResponse<Void> removeFamilyMember(
             @PathVariable Long childId,
-            @PathVariable Long memberId) {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        return familyService.removeFamilyMember(memberSeq, childId, memberId);
+            @PathVariable UUID memberId) {
+        UUID myMemberId = SecurityUtil.getCurrentMemberId();
+        return familyService.removeFamilyMember(myMemberId, childId, memberId);
     }
 
     /**
@@ -59,9 +60,9 @@ public class FamilyController {
     @PutMapping("/{memberId}/relation")
     public ApiResponse<FamilyMemberDto> updateRelation(
             @PathVariable Long childId,
-            @PathVariable Long memberId,
+            @PathVariable UUID memberId,
             @RequestBody RelationUpdateRequest request) {
-        Long memberSeq = SecurityUtil.getCurrentMemberSeq();
-        return familyService.updateRelation(memberSeq, childId, memberId, request);
+        UUID myMemberId = SecurityUtil.getCurrentMemberId();
+        return familyService.updateRelation(myMemberId, childId, memberId, request);
     }
 }

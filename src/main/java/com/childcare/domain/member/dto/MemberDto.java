@@ -5,13 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MemberDto {
-    private Long id;
-    private String memberId;
+    private UUID id;
     private String name;
     private String phone;
     private String tel;
@@ -20,4 +21,5 @@ public class MemberDto {
     private String addr1;
     private String addr2;
     private String inviteCode;
+    private String profileImageUrl;
 }

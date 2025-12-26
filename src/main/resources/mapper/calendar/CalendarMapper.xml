@@ -15,10 +15,10 @@
         <result property="placeAddress2" column="place_address2"/>
         <result property="memo" column="memo"/>
         <result property="regAiYn" column="reg_ai_yn"/>
-        <result property="regUserSeq" column="reg_user_seq"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regDate" column="reg_date"/>
         <result property="deleteYn" column="delete_yn"/>
-        <result property="deleteUserSeq" column="delete_user_seq"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="deleteDate" column="delete_date"/>
     </resultMap>
 

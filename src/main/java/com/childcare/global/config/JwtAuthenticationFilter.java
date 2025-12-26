@@ -19,23 +19,28 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    
+
     private final JwtUtil jwtUtil;
 
-    private final List<String> excludedPaths = Arrays.asList("/api/auth/", "/api/test/");
+    private final List<String> excludedPaths = Arrays.asList(
+            "/api/auth/kakao",
+            "/api/auth/google",
+            "/api/auth/test/",
+            "/api/auth/refresh",
+            "/api/auth/logout/token",
+            "/api/test/"
+    );
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException{
-        // 로그인, 회원가입 API URL이 포함되는지 확인하는 함수
         String path = request.getRequestURI();
-        boolean shouldNotFilter = excludedPaths.stream().anyMatch(path::startsWith);
         return excludedPaths.stream().anyMatch(path::startsWith);
     }
-
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -45,7 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = getTokenFromRequest(request);
             if (token != null && jwtUtil.validateToken(token)) {
-                Long userId = jwtUtil.getUserIdFromToken(token);
+                UUID userId = jwtUtil.getUserIdFromToken(token);
                 String email = jwtUtil.getEmailFromToken(token);
                 String role = jwtUtil.getRoleFromToken(token);
 
@@ -87,7 +92,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write("{\"status\":\"error\",\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"data\":null}");
     }
-    
+
     private String getTokenFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {

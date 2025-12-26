@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -20,7 +21,7 @@ public class BoardItemListDto {
     private String fixYn;
 
     // 작성자 정보
-    private Long regUserSeq;
+    private UUID regId;
     private String regUserName;
     private LocalDateTime regDate;
 

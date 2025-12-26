@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,9 +29,9 @@ public class CalendarService {
     private final CalendarMapper calendarMapper;
     private final ChildAccessValidator childAccessValidator;
 
-    public ApiResponse<List<CalendarDto>> getCalendarsByChild(Long memberSeq, Long childId) {
+    public ApiResponse<List<CalendarDto>> getCalendarsByChild(UUID memberId, Long childId) {
         log.info("Fetching calendars for child: {}", childId);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildId(childId);
 
@@ -41,9 +42,9 @@ public class CalendarService {
         return ApiResponse.success("일정 조회 성공", calendarDtos);
     }
 
-    public ApiResponse<List<CalendarDto>> getCalendarsByChildAndDate(Long memberSeq, Long childId, String date) {
+    public ApiResponse<List<CalendarDto>> getCalendarsByChildAndDate(UUID memberId, Long childId, String date) {
         log.info("Fetching calendars for child: {} on date: {}", childId, date);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildIdAndDate(childId, date);
 
@@ -54,9 +55,9 @@ public class CalendarService {
         return ApiResponse.success("일정 조회 성공", calendarDtos);
     }
 
-    public ApiResponse<List<CalendarDto>> getCalendarsByChildAndMonth(Long memberSeq, Long childId, String yearMonth) {
+    public ApiResponse<List<CalendarDto>> getCalendarsByChildAndMonth(UUID memberId, Long childId, String yearMonth) {
         log.info("Fetching calendars for child: {} on month: {}", childId, yearMonth);
-        childAccessValidator.validateReadAccess(memberSeq, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<Calendar> calendars = calendarMapper.findCalendarsByChildIdAndMonth(childId, yearMonth);
 
@@ -68,9 +69,9 @@ public class CalendarService {
     }
 
     @Transactional
-    public ApiResponse<CalendarDto> createCalendar(Long memberSeq, Long childId, CalendarRequest request) {
+    public ApiResponse<CalendarDto> createCalendar(UUID memberId, Long childId, CalendarRequest request) {
         log.info("Creating calendar for child: {}", childId);
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         if (request.getTitle() == null || request.getTitle().isBlank()) {
             throw new CalendarException(CalendarErrorCode.TITLE_REQUIRED);
@@ -94,7 +95,7 @@ public class CalendarService {
                 .placeAddress2(request.getPlaceAddress2())
                 .memo(request.getMemo())
                 .regAiYn("N")
-                .regUserSeq(memberSeq)
+                .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .deleteYn("N")
                 .build();
@@ -105,9 +106,9 @@ public class CalendarService {
     }
 
     @Transactional
-    public ApiResponse<CalendarDto> updateCalendar(Long memberSeq, Long childId, Long calendarId, CalendarRequest request) {
+    public ApiResponse<CalendarDto> updateCalendar(UUID memberId, Long childId, Long calendarId, CalendarRequest request) {
         log.info("Updating calendar {} for child: {}", calendarId, childId);
-        childAccessValidator.validateWriteAccess(memberSeq, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
                 .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
@@ -134,15 +135,15 @@ public class CalendarService {
     }
 
     @Transactional
-    public ApiResponse<Void> deleteCalendar(Long memberSeq, Long childId, Long calendarId) {
+    public ApiResponse<Void> deleteCalendar(UUID memberId, Long childId, Long calendarId) {
         log.info("Deleting calendar {} for child: {}", calendarId, childId);
-        childAccessValidator.validateDeleteAccess(memberSeq, childId);
+        childAccessValidator.validateDeleteAccess(memberId, childId);
 
         Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
                 .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
 
         calendar.setDeleteYn("Y");
-        calendar.setDeleteUserSeq(String.valueOf(memberSeq));
+        calendar.setDeleteId(memberId);
         calendar.setDeleteDate(LocalDateTime.now());
 
         calendarRepository.save(calendar);

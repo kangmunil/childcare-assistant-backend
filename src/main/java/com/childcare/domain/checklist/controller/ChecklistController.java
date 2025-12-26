@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/children/{childId}/checklists")
@@ -25,10 +26,10 @@ public class ChecklistController {
     @GetMapping("/checked/{div}")
     public ResponseEntity<ApiResponse<List<ChecklistDto>>> getCheckedChecklists(
             @PathVariable Long childId, @PathVariable String div) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get checked checklists for child: {}", childId);
 
-        ApiResponse<List<ChecklistDto>> response = checklistService.getCheckedChecklists(memberSeq, childId, div);
+        ApiResponse<List<ChecklistDto>> response = checklistService.getCheckedChecklists(memberId, childId, div);
         return ResponseEntity.ok(response);
     }
 
@@ -38,10 +39,10 @@ public class ChecklistController {
     @GetMapping("/unchecked/{div}")
     public ResponseEntity<ApiResponse<List<ChecklistDto>>> getUncheckedChecklists(
             @PathVariable Long childId, @PathVariable String div) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Get unchecked checklists for child: {}", childId);
 
-        ApiResponse<List<ChecklistDto>> response = checklistService.getUncheckedChecklists(memberSeq, childId, div);
+        ApiResponse<List<ChecklistDto>> response = checklistService.getUncheckedChecklists(memberId, childId, div);
         return ResponseEntity.ok(response);
     }
 
@@ -51,10 +52,10 @@ public class ChecklistController {
     @PostMapping("/{itemId}")
     public ResponseEntity<ApiResponse<Void>> addCheck(
             @PathVariable Long childId, @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Add check for child: {}, item: {}", childId, itemId);
 
-        ApiResponse<Void> response = checklistService.addCheck(memberSeq, childId, itemId);
+        ApiResponse<Void> response = checklistService.addCheck(memberId, childId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -64,14 +65,14 @@ public class ChecklistController {
     @DeleteMapping("/{itemId}")
     public ResponseEntity<ApiResponse<Void>> removeCheck(
             @PathVariable Long childId, @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
+        UUID memberId = getMemberId();
         log.info("Remove check for child: {}, item: {}", childId, itemId);
 
-        ApiResponse<Void> response = checklistService.removeCheck(memberSeq, childId, itemId);
+        ApiResponse<Void> response = checklistService.removeCheck(memberId, childId, itemId);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }

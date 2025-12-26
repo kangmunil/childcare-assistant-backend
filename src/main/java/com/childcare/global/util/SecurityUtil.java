@@ -4,6 +4,8 @@ import com.childcare.global.exception.UnauthorizedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.UUID;
+
 public class SecurityUtil {
 
     private SecurityUtil() {
@@ -11,10 +13,10 @@ public class SecurityUtil {
     }
 
     /**
-     * 현재 로그인한 회원의 memberSeq를 반환합니다.
+     * 현재 로그인한 회원의 ID (UUID)를 반환합니다.
      * 인증되지 않은 경우 UnauthorizedException을 발생시킵니다.
      */
-    public static Long getCurrentMemberSeq() {
+    public static UUID getCurrentMemberId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || authentication.getPrincipal() == null) {
@@ -23,8 +25,8 @@ public class SecurityUtil {
 
         Object principal = authentication.getPrincipal();
 
-        if (principal instanceof Long) {
-            return (Long) principal;
+        if (principal instanceof UUID) {
+            return (UUID) principal;
         }
 
         if ("anonymousUser".equals(principal)) {

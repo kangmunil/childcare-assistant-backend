@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "cc_diary_item")
@@ -33,8 +34,8 @@ public class CcDiaryItem {
     @Column(name = "cc_di_unit", length = 20)
     private String ccDiUnit;
 
-    @Column(name = "reg_user_seq", nullable = false)
-    private Long regUserSeq;
+    @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
+    private UUID regId;
 
     @Column(name = "reg_date", nullable = false)
     private LocalDateTime regDate;
@@ -42,8 +43,8 @@ public class CcDiaryItem {
     @Column(name = "delete_yn", length = 1)
     private String deleteYn;
 
-    @Column(name = "delete_user_seq")
-    private String deleteUserSeq;
+    @Column(name = "delete_id", columnDefinition = "uuid")
+    private UUID deleteId;
 
     @Column(name = "delete_date")
     private LocalDateTime deleteDate;

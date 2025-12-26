@@ -1,11 +1,11 @@
 package com.childcare.domain.auth.service;
 
 import com.childcare.domain.auth.dto.*;
+import com.childcare.domain.auth.entity.RefreshToken;
+import com.childcare.domain.auth.repository.RefreshTokenRepository;
 import com.childcare.domain.member.entity.Member;
-import com.childcare.domain.member.entity.MemberOAuth;
 import com.childcare.domain.member.entity.Role;
 import com.childcare.domain.member.repository.MemberRepository;
-import com.childcare.domain.member.repository.MemberOAuthRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
 import com.childcare.global.exception.AuthException;
@@ -14,14 +14,13 @@ import com.childcare.global.util.InviteCodeGenerator;
 import com.childcare.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,13 +29,15 @@ import java.util.List;
 public class AuthService {
 
     private final MemberRepository memberRepository;
-    private final MemberOAuthRepository memberOAuthRepository;
     private final ParentRepository parentRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final WebClient webClient;
-    private final PasswordEncoder passwordEncoder;
     private final InviteCodeGenerator inviteCodeGenerator;
 
+    /**
+     * 카카오 OAuth 로그인
+     */
     public AuthResponse authenticateKakao(String accessToken) {
         try {
             KakaoUserInfo kakaoUserInfo = webClient
@@ -54,15 +55,15 @@ public class AuthService {
             Member member = findOrCreateOAuthUser(
                     kakaoUserInfo.getKakaoAccount().getEmail(),
                     kakaoUserInfo.getKakaoAccount().getProfile().getNickname(),
-                    MemberOAuth.OAuthProvider.KAKAO,
+                    "KAKAO",
                     kakaoUserInfo.getId().toString(),
                     kakaoUserInfo.getKakaoAccount().getProfile().getProfileImageUrl()
             );
 
             String role = member.getRole() != null ? member.getRole().name() : Role.USER.name();
-            String token = jwtUtil.generateToken(member.getMbSeq(), member.getEmail(), role);
+            String token = jwtUtil.generateToken(member.getId(), member.getEmail(), role);
 
-            return buildAuthResponse("카카오 로그인 성공", token, member, getOAuthNickname(member, MemberOAuth.OAuthProvider.KAKAO));
+            return buildAuthResponse("카카오 로그인 성공", token, member);
 
         } catch (Exception e) {
             log.error("Kakao authentication failed", e);
@@ -70,6 +71,9 @@ public class AuthService {
         }
     }
 
+    /**
+     * 구글 OAuth 로그인
+     */
     public AuthResponse authenticateGoogle(String accessToken) {
         try {
             GoogleUserInfo googleUserInfo = webClient
@@ -87,15 +91,15 @@ public class AuthService {
             Member member = findOrCreateOAuthUser(
                     googleUserInfo.getEmail(),
                     googleUserInfo.getName(),
-                    MemberOAuth.OAuthProvider.GOOGLE,
+                    "GOOGLE",
                     googleUserInfo.getSub(),
                     googleUserInfo.getPicture()
             );
 
             String role = member.getRole() != null ? member.getRole().name() : Role.USER.name();
-            String token = jwtUtil.generateToken(member.getMbSeq(), member.getEmail(), role);
+            String token = jwtUtil.generateToken(member.getId(), member.getEmail(), role);
 
-            return buildAuthResponse("구글 로그인 성공", token, member, getOAuthNickname(member, MemberOAuth.OAuthProvider.GOOGLE));
+            return buildAuthResponse("구글 로그인 성공", token, member);
 
         } catch (Exception e) {
             log.error("Google authentication failed", e);
@@ -103,145 +107,191 @@ public class AuthService {
         }
     }
 
-    public AuthResponse login(String id, String password) {
-        Member member = memberRepository.findById(id)
-                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_CREDENTIALS));
+    /**
+     * 테스트용 회원 생성 및 로그인 (OAuth API 없이)
+     */
+    public AuthResponse testRegister(String email, String name) {
+        // 기존 회원 확인 (이메일로)
+        Member member = memberRepository.findByEmail(email).orElse(null);
 
-        if (!passwordEncoder.matches(password, member.getPassword())) {
-            throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
+        if (member == null) {
+            // 새 회원 생성
+            member = Member.builder()
+                    .email(email)
+                    .name(name)
+                    .inviteCode(inviteCodeGenerator.generate())
+                    .role(Role.USER)
+                    .provider("TEST")
+                    .providerId(UUID.randomUUID().toString())
+                    .build();
+            member = memberRepository.save(member);
+            log.info("Created new test member: {}", member.getId());
         }
 
-        // Update login date
-        member.setLoginDate(LocalDateTime.now());
-        memberRepository.save(member);
-
+        // JWT 토큰 생성
         String role = member.getRole() != null ? member.getRole().name() : Role.USER.name();
-        String token = jwtUtil.generateToken(member.getMbSeq(), member.getEmail(), role);
+        String token = jwtUtil.generateToken(member.getId(), member.getEmail(), role);
 
-        return buildAuthResponse("로그인 성공", token, member, null);
+        return buildAuthResponse("테스트 로그인 성공", token, member);
     }
 
-    public AuthResponse register(RegisterRequest request) {
-        if (memberRepository.existsById(request.getId())) {
-            throw new AuthException(AuthErrorCode.ID_ALREADY_EXISTS);
-        }
+    /**
+     * OAuth 사용자 조회 또는 생성
+     */
+    private Member findOrCreateOAuthUser(String email, String nickname, String provider, String providerId, String profileImageUrl) {
+        // 먼저 provider + providerId로 기존 회원 확인
+        return memberRepository.findByProviderAndProviderId(provider, providerId)
+                .orElseGet(() -> {
+                    // 이메일로 기존 회원 찾기
+                    Member existingMember = memberRepository.findByEmail(email).orElse(null);
 
-        if (request.getEmail() != null && memberRepository.existsByEmail(request.getEmail())) {
-            throw new AuthException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
-        }
+                    if (existingMember != null) {
+                        // 기존 회원에 OAuth 정보 업데이트
+                        existingMember.setProvider(provider);
+                        existingMember.setProviderId(providerId);
+                        existingMember.setProfileImageUrl(profileImageUrl);
+                        existingMember.setLoginDate(LocalDateTime.now());
+                        return memberRepository.save(existingMember);
+                    }
 
-        // 추천인 코드 검증 (선택)
-        Member referrer = null;
-        Long invitedBy = null;
-        if (StringUtils.hasText(request.getReferralCode())) {
-            referrer = memberRepository.findByInviteCode(request.getReferralCode())
-                    .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_REFERRAL_CODE));
-            invitedBy = referrer.getMbSeq();
-        }
-
-        Member member = Member.builder()
-                .id(request.getId())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .name(request.getName())
-                .email(request.getEmail())
-                .phone(request.getPhone())
-                .tel(request.getTel())
-                .postcode(request.getPostcode())
-                .addr1(request.getAddr1())
-                .addr2(request.getAddr2())
-                .invitedBy(invitedBy)
-                .inviteCode(inviteCodeGenerator.generate())
-                .build();
-
-        Member savedMember = memberRepository.save(member);
-
-        // 초대코드로 가입한 경우, 초대한 회원의 자녀 공유
-        if (referrer != null) {
-            shareChildrenWithInvitee(referrer.getMbSeq(), savedMember.getMbSeq());
-        }
-
-        String role = savedMember.getRole() != null ? savedMember.getRole().name() : Role.USER.name();
-        String token = jwtUtil.generateToken(savedMember.getMbSeq(), savedMember.getEmail(), role);
-
-        return buildAuthResponse("회원가입 성공", token, savedMember, null);
+                    // 새로운 회원 생성
+                    Member newMember = Member.builder()
+                            .email(email)
+                            .name(nickname)
+                            .provider(provider)
+                            .providerId(providerId)
+                            .profileImageUrl(profileImageUrl)
+                            .inviteCode(inviteCodeGenerator.generate())
+                            .role(Role.USER)
+                            .build();
+                    return memberRepository.save(newMember);
+                });
     }
 
-    private void shareChildrenWithInvitee(Long referrerMbSeq, Long inviteeMbSeq) {
-        // 초대한 회원의 자녀 목록 조회
-        List<Parent> referrerChildren = parentRepository.findByMbSeq(referrerMbSeq);
+    /**
+     * 초대코드로 가입 시 자녀 공유
+     */
+    private void shareChildrenWithInvitee(UUID referrerMbId, UUID inviteeMbId) {
+        List<Parent> referrerChildren = parentRepository.findByMbId(referrerMbId);
 
         for (Parent referrerParent : referrerChildren) {
-            // 새 회원에게 자녀 공유 (auth_manage는 0, 나머지는 1)
             Parent sharedParent = Parent.builder()
-                    .mbSeq(inviteeMbSeq)
+                    .mbId(inviteeMbId)
                     .chSeq(referrerParent.getChSeq())
                     .relation("family")
                     .authManage("0")
                     .authRead("1")
                     .authWrite("1")
                     .authDelete("1")
-                    .regUserSeq(referrerMbSeq)
+                    .regId(referrerMbId)
                     .regDate(LocalDateTime.now())
                     .build();
 
             parentRepository.save(sharedParent);
-            log.info("Shared child {} with invitee {}", referrerParent.getChSeq(), inviteeMbSeq);
+            log.info("Shared child {} with invitee {}", referrerParent.getChSeq(), inviteeMbId);
         }
     }
 
-    private AuthResponse buildAuthResponse(String message, String token, Member member, String nickname) {
+    private AuthResponse buildAuthResponse(String message, String accessToken, Member member) {
+        // 기존 refresh token 무효화
+        refreshTokenRepository.revokeAllByMbId(member.getId(), LocalDateTime.now());
+
+        // 새 refresh token 생성
+        String refreshTokenValue = jwtUtil.generateRefreshToken(member.getId());
+        long refreshTokenValidityMs = jwtUtil.getRefreshTokenValidityInMilliseconds();
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(refreshTokenValidityMs / 1000);
+
+        RefreshToken refreshToken = RefreshToken.builder()
+                .mbId(member.getId())
+                .token(refreshTokenValue)
+                .expiresAt(expiresAt)
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("Refresh token created for member: {}", member.getId());
+
         return AuthResponse.builder()
                 .status("success")
                 .message(message)
                 .data(AuthResponse.AuthData.builder()
-                        .accessToken(token)
-                        .refreshToken(null)
+                        .accessToken(accessToken)
+                        .refreshToken(refreshTokenValue)
                         .user(AuthResponse.UserDto.builder()
-                                .id(member.getMbSeq())
+                                .id(member.getId())
                                 .email(member.getEmail())
-                                .nickname(nickname)
+                                .nickname(member.getName())
                                 .name(member.getName())
+                                .profileImageUrl(member.getProfileImageUrl())
                                 .build())
                         .build())
                 .build();
     }
 
-    private Member findOrCreateOAuthUser(String email, String nickname, MemberOAuth.OAuthProvider provider, String providerId, String profileImageUrl) {
-        // 먼저 기존 OAuth 연동 확인
-        return memberOAuthRepository.findByProviderAndProviderId(provider, providerId)
-                .map(MemberOAuth::getMember)
-                .orElseGet(() -> {
-                    // 이메일로 기존 회원 찾기
-                    Member member = memberRepository.findByEmail(email)
-                            .orElseGet(() -> {
-                                // 새로운 회원 생성
-                                Member newMember = Member.builder()
-                                        .email(email)
-                                        .name(nickname) // OAuth는 닉네임을 name으로 사용
-                                        .inviteCode(inviteCodeGenerator.generate())
-                                        .build();
-                                return memberRepository.save(newMember);
-                            });
+    /**
+     * Refresh Token으로 새 Access Token 발급
+     */
+    public AuthResponse refresh(String refreshTokenValue) {
+        // Refresh token 검증 (JWT 서명)
+        if (!jwtUtil.validateRefreshToken(refreshTokenValue)) {
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
+        }
 
-                    // OAuth 연동 정보 저장
-                    MemberOAuth oAuth = MemberOAuth.builder()
-                            .member(member)
-                            .provider(provider)
-                            .providerId(providerId)
-                            .nickname(nickname)
-                            .profileImageUrl(profileImageUrl)
-                            .build();
-                    memberOAuthRepository.save(oAuth);
+        // DB에서 refresh token 조회
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
 
-                    return member;
-                });
+        // 유효성 검사 (만료, 폐기 여부)
+        if (!refreshToken.isValid()) {
+            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
+        }
+
+        // 회원 조회
+        UUID userId = refreshToken.getMbId();
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
+
+        // 새 Access Token 생성
+        String role = member.getRole() != null ? member.getRole().name() : Role.USER.name();
+        String newAccessToken = jwtUtil.generateToken(member.getId(), member.getEmail(), role);
+
+        log.info("Access token refreshed for member: {}", member.getId());
+
+        return AuthResponse.builder()
+                .status("success")
+                .message("토큰 갱신 성공")
+                .data(AuthResponse.AuthData.builder()
+                        .accessToken(newAccessToken)
+                        .refreshToken(refreshTokenValue)  // 기존 refresh token 유지
+                        .user(AuthResponse.UserDto.builder()
+                                .id(member.getId())
+                                .email(member.getEmail())
+                                .nickname(member.getName())
+                                .name(member.getName())
+                                .profileImageUrl(member.getProfileImageUrl())
+                                .build())
+                        .build())
+                .build();
     }
 
-    private String getOAuthNickname(Member member, MemberOAuth.OAuthProvider provider) {
-        return member.getOAuthConnections().stream()
-                .filter(oauth -> oauth.getProvider() == provider)
-                .findFirst()
-                .map(MemberOAuth::getNickname)
+    /**
+     * 로그아웃 (Refresh Token 무효화)
+     */
+    public void logout(UUID userId) {
+        int revokedCount = refreshTokenRepository.revokeAllByMbId(userId, LocalDateTime.now());
+        log.info("Logged out member: {}, revoked {} refresh tokens", userId, revokedCount);
+    }
+
+    /**
+     * Refresh Token으로 로그아웃
+     */
+    public void logoutByRefreshToken(String refreshTokenValue) {
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
                 .orElse(null);
+
+        if (refreshToken != null && refreshToken.isValid()) {
+            refreshToken.setRevokedAt(LocalDateTime.now());
+            refreshTokenRepository.save(refreshToken);
+            log.info("Refresh token revoked for member: {}", refreshToken.getMbId());
+        }
     }
 }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -24,12 +25,12 @@ public class BoardItemDto {
     private Integer regUserPostcode;
 
     // 작성자 정보
-    private Long regUserSeq;
+    private UUID regId;
     private String regUserName;
     private LocalDateTime regDate;
 
     // 수정 정보
-    private Long updateUserSeq;
+    private UUID updateId;
     private LocalDateTime updateDate;
 
     // 첨부파일

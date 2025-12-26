@@ -5,21 +5,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface MemberRepository extends JpaRepository<Member, Long> {
+public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     Optional<Member> findByEmail(String email);
 
-    Optional<Member> findByIdAndPassword(String id, String password);
-
-    Optional<Member> findById(String id);
-
-    Optional<Member> findByMbSeq(Long mbSeq);
+    Optional<Member> findByProviderAndProviderId(String provider, String providerId);
 
     boolean existsByEmail(String email);
-
-    boolean existsById(String id);
 
     Optional<Member> findByInviteCode(String inviteCode);
 

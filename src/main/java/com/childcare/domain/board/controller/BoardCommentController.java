@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/boards/{boardId}/items/{itemId}/comments")
@@ -28,10 +29,10 @@ public class BoardCommentController {
     public ResponseEntity<ApiResponse<List<BoardCommentDto>>> getComments(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Get comments for item: {}, member: {}", itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Get comments for item: {}, member: {}", itemId, memberId);
 
-        ApiResponse<List<BoardCommentDto>> response = boardCommentService.getComments(memberSeq, boardId, itemId);
+        ApiResponse<List<BoardCommentDto>> response = boardCommentService.getComments(memberId, boardId, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -44,10 +45,10 @@ public class BoardCommentController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @RequestBody BoardCommentRequest request) {
-        Long memberSeq = getMemberSeq();
-        log.info("Create comment for item: {}, member: {}", itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Create comment for item: {}, member: {}", itemId, memberId);
 
-        ApiResponse<BoardCommentDto> response = boardCommentService.createComment(memberSeq, boardId, itemId, request);
+        ApiResponse<BoardCommentDto> response = boardCommentService.createComment(memberId, boardId, itemId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -61,10 +62,10 @@ public class BoardCommentController {
             @PathVariable Long itemId,
             @PathVariable Long commentId,
             @RequestBody BoardCommentRequest request) {
-        Long memberSeq = getMemberSeq();
-        log.info("Update comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Update comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
-        ApiResponse<BoardCommentDto> response = boardCommentService.updateComment(memberSeq, boardId, itemId, commentId, request);
+        ApiResponse<BoardCommentDto> response = boardCommentService.updateComment(memberId, boardId, itemId, commentId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -77,10 +78,10 @@ public class BoardCommentController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long commentId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Delete comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Delete comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
-        ApiResponse<Void> response = boardCommentService.deleteComment(memberSeq, boardId, itemId, commentId);
+        ApiResponse<Void> response = boardCommentService.deleteComment(memberId, boardId, itemId, commentId);
         return ResponseEntity.ok(response);
     }
 
@@ -93,10 +94,10 @@ public class BoardCommentController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long commentId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Like comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Like comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
-        ApiResponse<Integer> response = boardCommentService.likeComment(memberSeq, boardId, itemId, commentId);
+        ApiResponse<Integer> response = boardCommentService.likeComment(memberId, boardId, itemId, commentId);
         return ResponseEntity.ok(response);
     }
 
@@ -109,14 +110,14 @@ public class BoardCommentController {
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long commentId) {
-        Long memberSeq = getMemberSeq();
-        log.info("Unlike comment: {} for item: {}, member: {}", commentId, itemId, memberSeq);
+        UUID memberId = getMemberId();
+        log.info("Unlike comment: {} for item: {}, member: {}", commentId, itemId, memberId);
 
-        ApiResponse<Integer> response = boardCommentService.unlikeComment(memberSeq, boardId, itemId, commentId);
+        ApiResponse<Integer> response = boardCommentService.unlikeComment(memberId, boardId, itemId, commentId);
         return ResponseEntity.ok(response);
     }
 
-    private Long getMemberSeq() {
-        return SecurityUtil.getCurrentMemberSeq();
+    private UUID getMemberId() {
+        return SecurityUtil.getCurrentMemberId();
     }
 }
