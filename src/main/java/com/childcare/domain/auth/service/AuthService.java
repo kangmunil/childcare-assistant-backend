@@ -2,6 +2,7 @@ package com.childcare.domain.auth.service;
 
 import com.childcare.domain.auth.dto.*;
 import com.childcare.domain.auth.entity.RefreshToken;
+import com.childcare.domain.auth.mapper.RefreshTokenMapper;
 import com.childcare.domain.auth.repository.RefreshTokenRepository;
 import com.childcare.domain.member.entity.Member;
 import com.childcare.domain.member.entity.Role;
@@ -22,6 +23,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * TODO: [Supabase Auth 전환 시 수정 필요]
+ * - authenticateKakao(), authenticateGoogle() 메서드 제거
+ * - WebClient를 통한 OAuth 토큰 검증 로직 제거
+ * - Supabase JWT에서 사용자 정보 추출하는 로직으로 대체
+ * - 회원 정보는 Supabase Auth의 user metadata 또는 member 테이블에서 관리
+ * - RefreshToken 관련 로직: Supabase Auth가 자동 처리하므로 제거 가능
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +40,7 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final ParentRepository parentRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenMapper refreshTokenMapper;
     private final JwtUtil jwtUtil;
     private final WebClient webClient;
     private final InviteCodeGenerator inviteCodeGenerator;
@@ -49,7 +59,7 @@ public class AuthService {
                     .block();
 
             if (kakaoUserInfo == null) {
-                throw new RuntimeException("Failed to get user info from Kakao");
+                throw new AuthException(AuthErrorCode.KAKAO_FAILED);
             }
 
             Member member = findOrCreateOAuthUser(
@@ -65,9 +75,11 @@ public class AuthService {
 
             return buildAuthResponse("카카오 로그인 성공", token, member);
 
+        } catch (AuthException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Kakao authentication failed", e);
-            throw new RuntimeException("Kakao authentication failed: " + e.getMessage());
+            throw new AuthException(AuthErrorCode.KAKAO_FAILED);
         }
     }
 
@@ -85,7 +97,7 @@ public class AuthService {
                     .block();
 
             if (googleUserInfo == null) {
-                throw new RuntimeException("Failed to get user info from Google");
+                throw new AuthException(AuthErrorCode.GOOGLE_FAILED);
             }
 
             Member member = findOrCreateOAuthUser(
@@ -101,9 +113,11 @@ public class AuthService {
 
             return buildAuthResponse("구글 로그인 성공", token, member);
 
+        } catch (AuthException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Google authentication failed", e);
-            throw new RuntimeException("Google authentication failed: " + e.getMessage());
+            throw new AuthException(AuthErrorCode.GOOGLE_FAILED);
         }
     }
 
@@ -194,7 +208,7 @@ public class AuthService {
 
     private AuthResponse buildAuthResponse(String message, String accessToken, Member member) {
         // 기존 refresh token 무효화
-        refreshTokenRepository.revokeAllByMbId(member.getId(), LocalDateTime.now());
+        refreshTokenMapper.revokeAllByMbId(member.getId(), LocalDateTime.now());
 
         // 새 refresh token 생성
         String refreshTokenValue = jwtUtil.generateRefreshToken(member.getId());
@@ -277,7 +291,7 @@ public class AuthService {
      * 로그아웃 (Refresh Token 무효화)
      */
     public void logout(UUID userId) {
-        int revokedCount = refreshTokenRepository.revokeAllByMbId(userId, LocalDateTime.now());
+        int revokedCount = refreshTokenMapper.revokeAllByMbId(userId, LocalDateTime.now());
         log.info("Logged out member: {}, revoked {} refresh tokens", userId, revokedCount);
     }
 

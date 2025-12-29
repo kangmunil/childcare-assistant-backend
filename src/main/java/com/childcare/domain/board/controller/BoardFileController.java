@@ -6,15 +6,13 @@ import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -57,11 +55,11 @@ public class BoardFileController {
     }
 
     /**
-     * 파일 다운로드 (Supabase Storage로 리다이렉트)
+     * 파일 다운로드 URL 조회
      * GET /boards/{boardId}/items/{itemId}/files/{fileId}/download
      */
     @GetMapping("/{fileId}/download")
-    public ResponseEntity<Void> downloadFile(
+    public ResponseEntity<ApiResponse<Map<String, String>>> downloadFile(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long fileId) {
@@ -70,9 +68,7 @@ public class BoardFileController {
 
         String downloadUrl = boardFileService.getDownloadUrl(memberId, boardId, itemId, fileId);
 
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(downloadUrl))
-                .build();
+        return ResponseEntity.ok(ApiResponse.success("다운로드 URL 조회 성공", Map.of("downloadUrl", downloadUrl)));
     }
 
     /**

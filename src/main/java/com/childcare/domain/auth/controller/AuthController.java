@@ -27,18 +27,9 @@ public class AuthController {
      */
     @PostMapping("/kakao")
     public ResponseEntity<AuthResponse> kakaoAuth(@Valid @RequestBody AuthRequest request) {
-        try {
-            log.info("Kakao authentication request received");
-            AuthResponse response = authService.authenticateKakao(request.getAccessToken());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Kakao authentication error", e);
-            AuthResponse errorResponse = AuthResponse.builder()
-                    .status("error")
-                    .message("카카오 로그인 실패: " + e.getMessage())
-                    .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
+        log.info("Kakao authentication request received");
+        AuthResponse response = authService.authenticateKakao(request.getAccessToken());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -46,18 +37,9 @@ public class AuthController {
      */
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> googleAuth(@Valid @RequestBody AuthRequest request) {
-        try {
-            log.info("Google authentication request received");
-            AuthResponse response = authService.authenticateGoogle(request.getAccessToken());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Google authentication error", e);
-            AuthResponse errorResponse = AuthResponse.builder()
-                    .status("error")
-                    .message("구글 로그인 실패: " + e.getMessage())
-                    .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
+        log.info("Google authentication request received");
+        AuthResponse response = authService.authenticateGoogle(request.getAccessToken());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -78,18 +60,9 @@ public class AuthController {
      */
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        try {
-            log.info("Token refresh request received");
-            AuthResponse response = authService.refresh(request.getRefreshToken());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Token refresh error", e);
-            AuthResponse errorResponse = AuthResponse.builder()
-                    .status("error")
-                    .message("토큰 갱신 실패: " + e.getMessage())
-                    .build();
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
+        log.info("Token refresh request received");
+        AuthResponse response = authService.refresh(request.getRefreshToken());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -97,15 +70,10 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(Authentication authentication) {
-        try {
-            UUID userId = (UUID) authentication.getPrincipal();
-            log.info("Logout request for user: {}", userId);
-            authService.logout(userId);
-            return ResponseEntity.ok(ApiResponse.success("로그아웃 성공", null));
-        } catch (Exception e) {
-            log.error("Logout error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("AUTH_010", "로그아웃 실패: " + e.getMessage()));
-        }
+        UUID userId = (UUID) authentication.getPrincipal();
+        log.info("Logout request for user: {}", userId);
+        authService.logout(userId);
+        return ResponseEntity.ok(ApiResponse.success("로그아웃 성공", null));
     }
 
     /**
@@ -113,13 +81,8 @@ public class AuthController {
      */
     @PostMapping("/logout/token")
     public ResponseEntity<ApiResponse<Void>> logoutByToken(@Valid @RequestBody RefreshRequest request) {
-        try {
-            log.info("Logout by refresh token request received");
-            authService.logoutByRefreshToken(request.getRefreshToken());
-            return ResponseEntity.ok(ApiResponse.success("로그아웃 성공", null));
-        } catch (Exception e) {
-            log.error("Logout error", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("AUTH_010", "로그아웃 실패: " + e.getMessage()));
-        }
+        log.info("Logout by refresh token request received");
+        authService.logoutByRefreshToken(request.getRefreshToken());
+        return ResponseEntity.ok(ApiResponse.success("로그아웃 성공", null));
     }
 }
