@@ -20,4 +20,5 @@ public class BoardFileDto {
     private String extension;
     private Integer fileSize;
     private LocalDateTime regDate;
+    private String downloadUrl;  // Supabase Storage 다운로드 URL
 }
