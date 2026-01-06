@@ -22,7 +22,9 @@ public class AuthException extends RuntimeException {
         TOKEN_EXPIRED("AUTH_008", "토큰이 만료되었습니다. 다시 로그인해주세요."),
         INVALID_TOKEN("AUTH_009", "유효하지 않은 토큰입니다. 다시 로그인해주세요."),
         MEMBER_NOT_FOUND("AUTH_010", "회원 정보를 찾을 수 없습니다."),
-        MEMBER_ALREADY_EXISTS("AUTH_011", "이미 등록된 회원입니다.");
+        MEMBER_ALREADY_EXISTS("AUTH_011", "이미 등록된 회원입니다."),
+        KAKAO_FAILED("AUTH_K01", "카카오 로그인 실패: Invalid access token"),
+        GOOGLE_FAILED("AUTH_G01", "구글 로그인 실패: Invalid access token");
 
         private final String code;
         private final String message;
