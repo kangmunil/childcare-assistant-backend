@@ -12,21 +12,13 @@ import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.exception.BoardException;
 import com.childcare.global.exception.BoardException.BoardErrorCode;
+import com.childcare.global.service.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -45,9 +37,7 @@ public class BoardFileService {
     private final BoardItemRepository boardItemRepository;
     private final BoardFileRepository boardFileRepository;
     private final MemberRepository memberRepository;
-
-    @Value("${file.upload-dir:uploads}")
-    private String uploadDir;
+    private final SupabaseStorageService storageService;
 
     // 기본 허용 확장자
     private static final List<String> DEFAULT_ALLOWED_EXTENSIONS = Arrays.asList(
@@ -118,10 +108,11 @@ public class BoardFileService {
     }
 
     /**
-     * 파일 다운로드
+     * 파일 다운로드 URL 조회
+     * @return 서명된 다운로드 URL (1시간 유효)
      */
-    public Resource downloadFile(UUID memberId, Long boardId, Long itemId, Long fileId) {
-        log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberId);
+    public String getDownloadUrl(UUID memberId, Long boardId, Long itemId, Long fileId) {
+        log.info("Get download URL for file: {} item: {}, member: {}", fileId, itemId, memberId);
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
@@ -140,18 +131,8 @@ public class BoardFileService {
             throw new BoardException(BoardErrorCode.FILE_NOT_FOUND);
         }
 
-        try {
-            Path filePath = Paths.get(boardFile.getBfPath(), boardFile.getBfName()).normalize();
-            Resource resource = new UrlResource(filePath.toUri());
-
-            if (resource.exists() && resource.isReadable()) {
-                return resource;
-            } else {
-                throw new BoardException(BoardErrorCode.FILE_NOT_FOUND);
-            }
-        } catch (MalformedURLException e) {
-            throw new BoardException(BoardErrorCode.FILE_NOT_FOUND);
-        }
+        // 서명된 URL 반환 (1시간 = 3600초)
+        return storageService.getSignedUrl(boardFile.getBfPath(), 3600);
     }
 
     /**
@@ -178,13 +159,8 @@ public class BoardFileService {
             throw new BoardException(BoardErrorCode.FILE_NOT_FOUND);
         }
 
-        // 실제 파일 삭제
-        try {
-            Path filePath = Paths.get(boardFile.getBfPath(), boardFile.getBfName());
-            Files.deleteIfExists(filePath);
-        } catch (IOException e) {
-            log.warn("Failed to delete physical file: {}", boardFile.getBfPath(), e);
-        }
+        // Supabase Storage에서 파일 삭제
+        storageService.deleteFile(boardFile.getBfPath());
 
         // DB에서 삭제
         boardFileRepository.delete(boardFile);
@@ -223,42 +199,32 @@ public class BoardFileService {
     }
 
     private BoardFileDto saveFile(MultipartFile file, Long itemId, UUID memberId, String boCode) {
-        try {
-            String originalFilename = file.getOriginalFilename();
-            String extension = getFileExtension(originalFilename);
+        String originalFilename = file.getOriginalFilename();
+        String extension = getFileExtension(originalFilename);
 
-            // 저장 경로 생성 (uploads/board/{boCode}/yyyyMMdd/)
-            String datePath = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            Path uploadPath = Paths.get(uploadDir, "board", boCode, datePath);
-            Files.createDirectories(uploadPath);
+        // 저장 경로 생성 (board/{boCode}/yyyyMMdd/)
+        String datePath = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String savedFilename = UUID.randomUUID().toString() + "." + extension;
+        String storagePath = "board/" + boCode + "/" + datePath + "/" + savedFilename;
 
-            // 고유 파일명 생성
-            String savedFilename = UUID.randomUUID().toString() + "." + extension;
-            Path filePath = uploadPath.resolve(savedFilename);
+        // Supabase Storage에 파일 업로드
+        storageService.uploadFile(file, storagePath);
 
-            // 파일 저장
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        // DB 저장
+        BoardFile boardFile = BoardFile.builder()
+                .biSeq(itemId)
+                .orgFilename(originalFilename)
+                .bfName(savedFilename)
+                .bfPath(storagePath)  // Supabase Storage 경로 저장
+                .bfExtension(extension)
+                .bfSize((int) file.getSize())
+                .regId(memberId)
+                .regDate(LocalDateTime.now())
+                .build();
 
-            // DB 저장
-            BoardFile boardFile = BoardFile.builder()
-                    .biSeq(itemId)
-                    .orgFilename(originalFilename)
-                    .bfName(savedFilename)
-                    .bfPath(uploadPath.toString())
-                    .bfExtension(extension)
-                    .bfSize((int) file.getSize())
-                    .regId(memberId)
-                    .regDate(LocalDateTime.now())
-                    .build();
+        BoardFile savedFile = boardFileRepository.save(boardFile);
 
-            BoardFile savedFile = boardFileRepository.save(boardFile);
-
-            return toDto(savedFile);
-
-        } catch (IOException e) {
-            log.error("Failed to save file: {}", file.getOriginalFilename(), e);
-            throw new BoardException(BoardErrorCode.FILE_UPLOAD_FAILED);
-        }
+        return toDto(savedFile);
     }
 
     private String getFileExtension(String filename) {
@@ -343,6 +309,9 @@ public class BoardFileService {
     }
 
     private BoardFileDto toDto(BoardFile file) {
+        // 서명된 다운로드 URL 생성 (1시간 유효)
+        String downloadUrl = storageService.getSignedUrl(file.getBfPath(), 3600);
+
         return BoardFileDto.builder()
                 .id(file.getBfSeq())
                 .itemId(file.getBiSeq())
@@ -352,6 +321,7 @@ public class BoardFileService {
                 .extension(file.getBfExtension())
                 .fileSize(file.getBfSize())
                 .regDate(file.getRegDate())
+                .downloadUrl(downloadUrl)
                 .build();
     }
 }
