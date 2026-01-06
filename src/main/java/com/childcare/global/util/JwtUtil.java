@@ -2,134 +2,115 @@ package com.childcare.global.util;
 
 import com.childcare.global.exception.AuthException;
 import com.childcare.global.exception.AuthException.AuthErrorCode;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.RemoteJWKSet;
+import com.nimbusds.jose.proc.JWSKeySelector;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.proc.ConfigurableJWTProcessor;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
-import java.util.Date;
+import java.net.URL;
+import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Supabase JWT 검증 유틸리티 (ES256 JWKS 방식)
+ * - Supabase JWKS 엔드포인트에서 공개키를 가져와 JWT 검증
+ */
 @Component
 @Slf4j
 public class JwtUtil {
 
-    private final SecretKey secretKey;
-    private final long accessTokenValidityInMilliseconds;
-    private final long refreshTokenValidityInMilliseconds;
+    @Value("${supabase.url}")
+    private String supabaseUrl;
 
-    public JwtUtil(@Value("${jwt.secret:mySecretKey12345678901234567890123456789012345678901234567890}") String secret,
-                   @Value("${jwt.access-token-validity-in-seconds:3600}") long accessTokenValidityInSeconds,
-                   @Value("${jwt.refresh-token-validity-in-seconds:604800}") long refreshTokenValidityInSeconds) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
-        this.accessTokenValidityInMilliseconds = accessTokenValidityInSeconds * 1000;
-        this.refreshTokenValidityInMilliseconds = refreshTokenValidityInSeconds * 1000;
-    }
+    private ConfigurableJWTProcessor<SecurityContext> jwtProcessor;
 
-    public long getRefreshTokenValidityInMilliseconds() {
-        return refreshTokenValidityInMilliseconds;
-    }
-
-    public String generateToken(UUID userId, String email, String role) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + accessTokenValidityInMilliseconds);
-
-        return Jwts.builder()
-                .subject(userId.toString())
-                .claim("email", email)
-                .claim("role", role)
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(secretKey)
-                .compact();
-    }
-
-    public String generateRefreshToken(UUID userId) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + refreshTokenValidityInMilliseconds);
-
-        return Jwts.builder()
-                .subject(userId.toString())
-                .claim("type", "refresh")
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(secretKey)
-                .compact();
-    }
-
-    public boolean validateRefreshToken(String token) {
+    @PostConstruct
+    public void init() {
         try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            String jwksUrl = supabaseUrl + "/auth/v1/.well-known/jwks.json";
+            JWKSource<SecurityContext> keySource = new RemoteJWKSet<>(new URL(jwksUrl));
+            JWSKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(JWSAlgorithm.ES256, keySource);
 
-            String type = claims.get("type", String.class);
-            return "refresh".equals(type);
+            jwtProcessor = new DefaultJWTProcessor<>();
+            jwtProcessor.setJWSKeySelector(keySelector);
+
+            log.info("JwtUtil initialized with JWKS URL: {}", jwksUrl);
         } catch (Exception e) {
-            log.error("Refresh token validation failed: {}", e.getMessage());
-            return false;
+            log.error("Failed to initialize JwtUtil: {}", e.getMessage());
+            throw new RuntimeException("JWT processor initialization failed", e);
         }
     }
 
+    /**
+     * Supabase JWT에서 사용자 ID(UUID) 추출
+     */
     public UUID getUserIdFromToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
+        JWTClaimsSet claims = parseClaims(token);
         return UUID.fromString(claims.getSubject());
     }
 
+    /**
+     * Supabase JWT에서 이메일 추출
+     */
     public String getEmailFromToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.get("email", String.class);
+        JWTClaimsSet claims = parseClaims(token);
+        return (String) claims.getClaim("email");
     }
 
-    public String getRoleFromToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.get("role", String.class);
+    /**
+     * Supabase JWT에서 user_metadata 추출
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getUserMetadataFromToken(String token) {
+        JWTClaimsSet claims = parseClaims(token);
+        return (Map<String, Object>) claims.getClaim("user_metadata");
     }
 
+    /**
+     * Supabase JWT에서 app_metadata 추출
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getAppMetadataFromToken(String token) {
+        JWTClaimsSet claims = parseClaims(token);
+        return (Map<String, Object>) claims.getClaim("app_metadata");
+    }
+
+    /**
+     * Supabase JWT 토큰 유효성 검증
+     */
     public boolean validateToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token);
+            parseClaims(token);
             return true;
-        } catch (ExpiredJwtException e) {
-            log.error("JWT token is expired: {}", e.getMessage());
-            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
-        } catch (SignatureException e) {
-            log.error("Invalid JWT signature: {}", e.getMessage());
+        } catch (AuthException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("JWT validation failed: {}", e.getMessage());
             throw new AuthException(AuthErrorCode.INVALID_TOKEN);
-        } catch (SecurityException e) {
-            log.error("JWT security error: {}", e.getMessage());
-            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
-        } catch (MalformedJwtException e) {
+        }
+    }
+
+    private JWTClaimsSet parseClaims(String token) {
+        try {
+            return jwtProcessor.process(token, null);
+        } catch (com.nimbusds.jwt.proc.BadJWTException e) {
+            if (e.getMessage().contains("expired") || e.getMessage().contains("Expired")) {
+                log.error("JWT token is expired: {}", e.getMessage());
+                throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
+            }
             log.error("Invalid JWT token: {}", e.getMessage());
             throw new AuthException(AuthErrorCode.INVALID_TOKEN);
-        } catch (UnsupportedJwtException e) {
-            log.error("JWT token is unsupported: {}", e.getMessage());
-            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
-        } catch (IllegalArgumentException e) {
-            log.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (Exception e) {
+            log.error("JWT parsing failed: {}", e.getMessage());
             throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         }
     }
