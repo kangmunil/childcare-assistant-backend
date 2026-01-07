@@ -23,28 +23,29 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    
+
     // PostgreSQL
     implementation 'org.postgresql:postgresql'
 
     // MyBatis
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
-    
-    // JWT
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    implementation 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    implementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
-    
+
+    // JWT (ES256 JWKS)
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.37'
+
     // HTTP Client for OAuth
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    
+
     // DevTools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    
+
+    // Dotenv for .env file support
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'

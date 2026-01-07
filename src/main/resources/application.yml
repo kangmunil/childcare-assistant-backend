@@ -11,6 +11,9 @@ spring:
   application:
     name: childcare-assistant
 
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
   servlet:
     multipart:
       enabled: true
@@ -18,19 +21,17 @@ spring:
       max-request-size: 50MB
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/childcare
-    username: postgres
-    password: yourpassword
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: true
     open-in-view: false
 
 mybatis:
@@ -39,24 +40,11 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-
-  security:
-    user:
-      name: admin
-      password: admin
-
-jwt:
-  secret: mySecretKeyForChildcareAssistantApp1234567890123456789012345
-  access-token-validity-in-seconds: 86400
-
 file:
   upload-dir: uploads
 
-logging:
-  level:
-    root: INFO
-    com.childcare: DEBUG
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: TRACE
-    org.springframework.security: TRACE
+supabase:
+  url: ${SUPABASE_URL}
+  service-key: ${SUPABASE_SERVICE_KEY}
+  storage:
+    bucket: board-files

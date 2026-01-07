@@ -1,0 +1,15 @@
+# ===========================================
+# Production Profile
+# ===========================================
+
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.childcare: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN

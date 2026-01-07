@@ -1,22 +1,18 @@
 package com.childcare.domain.board.controller;
 
 import com.childcare.domain.board.dto.BoardFileDto;
-import com.childcare.domain.board.entity.BoardFile;
 import com.childcare.domain.board.service.BoardFileService;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -59,27 +55,20 @@ public class BoardFileController {
     }
 
     /**
-     * 파일 다운로드
+     * 파일 다운로드 URL 조회
      * GET /boards/{boardId}/items/{itemId}/files/{fileId}/download
      */
     @GetMapping("/{fileId}/download")
-    public ResponseEntity<Resource> downloadFile(
+    public ResponseEntity<ApiResponse<Map<String, String>>> downloadFile(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
             @PathVariable Long fileId) {
         UUID memberId = getMemberId();
         log.info("Download file: {} for item: {}, member: {}", fileId, itemId, memberId);
 
-        Resource resource = boardFileService.downloadFile(memberId, boardId, itemId, fileId);
-        BoardFile fileInfo = boardFileService.getFileInfo(fileId);
+        String downloadUrl = boardFileService.getDownloadUrl(memberId, boardId, itemId, fileId);
 
-        String encodedFilename = URLEncoder.encode(fileInfo.getOrgFilename(), StandardCharsets.UTF_8)
-                .replace("+", "%20");
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFilename)
-                .body(resource);
+        return ResponseEntity.ok(ApiResponse.success("다운로드 URL 조회 성공", Map.of("downloadUrl", downloadUrl)));
     }
 
     /**
