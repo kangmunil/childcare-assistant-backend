@@ -46,4 +46,6 @@ logs/
 ### OS Files ###
 .DS_Store
 Thumbs.db
-/.env
+
+### Environment Variables ###
+.env

@@ -1,7 +1,7 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.0'
-    id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.springframework.boot' version '3.4.13'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.childcare'
@@ -28,23 +28,25 @@ dependencies {
     implementation 'org.postgresql:postgresql'
 
     // MyBatis
-    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
-
-    // JWT (ES256 JWKS)
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
+    
+    // JWT (ES256 JWKS) - Nimbus
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37'
-
+    
     // HTTP Client for OAuth
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
+    // Java Dotenv
+    implementation 'io.github.cdimascio:java-dotenv:5.2.2'
+    
     // Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+    testCompileOnly 'org.projectlombok:lombok:1.18.36'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
+    
     // DevTools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-
-    // Dotenv for .env file support
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

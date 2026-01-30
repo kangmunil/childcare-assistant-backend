@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /api
     encoding:
@@ -31,7 +31,9 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+    show-sql: true
     open-in-view: false
 
 mybatis:
@@ -40,11 +42,32 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-file:
-  upload-dir: uploads
-
 supabase:
   url: ${SUPABASE_URL}
   service-key: ${SUPABASE_SERVICE_KEY}
   storage:
     bucket: board-files
+
+  security:
+    user:
+      name: admin
+      password: admin
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-validity-in-seconds: ${JWT_EXPIRATION:86400}
+
+file:
+  upload-dir: uploads
+
+ai:
+  service-url: ${AI_SERVICE_URL:http://localhost:8000}
+
+logging:
+  level:
+    root: INFO
+    com.childcare: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+    org.springframework.security: TRACE

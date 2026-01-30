@@ -69,6 +69,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(GrowthHistoryException.class)
+    public ResponseEntity<ApiResponse<Void>> handleGrowthHistoryException(GrowthHistoryException e) {
+        log.error("Growth history error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
         log.error("Request body parsing error: {}", e.getMessage());
