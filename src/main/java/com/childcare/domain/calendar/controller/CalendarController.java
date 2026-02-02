@@ -40,6 +40,17 @@ public class CalendarController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{calendarId}")
+    public ResponseEntity<ApiResponse<CalendarDto>> getCalendar(
+            @PathVariable Long childId,
+            @PathVariable Long calendarId) {
+        UUID memberId = getMemberId();
+        log.info("Get calendar {} request for child: {}", calendarId, childId);
+
+        ApiResponse<CalendarDto> response = calendarService.getCalendar(memberId, childId, calendarId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<CalendarDto>> createCalendar(
             @PathVariable Long childId,

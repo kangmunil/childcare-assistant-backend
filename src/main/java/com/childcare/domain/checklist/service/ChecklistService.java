@@ -73,7 +73,7 @@ public class ChecklistService {
         }
 
         // 이미 체크되어 있는지 확인
-        if (checklistMapper.isChecked(childId, itemId)) {
+        if (checklistMapper.isChecked(childId, itemId) > 0) {
             throw new ChecklistException(ChecklistErrorCode.ALREADY_CHECKED);
         }
 
@@ -102,7 +102,7 @@ public class ChecklistService {
         }
 
         // 체크되어 있는지 확인
-        if (!checklistMapper.isChecked(childId, itemId)) {
+        if (checklistMapper.isChecked(childId, itemId) == 0) {
             throw new ChecklistException(ChecklistErrorCode.NOT_CHECKED);
         }
 

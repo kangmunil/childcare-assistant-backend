@@ -68,6 +68,16 @@ public class CalendarService {
         return ApiResponse.success("일정 조회 성공", calendarDtos);
     }
 
+    public ApiResponse<CalendarDto> getCalendar(UUID memberId, Long childId, Long calendarId) {
+        log.info("Fetching calendar {} for child: {}", calendarId, childId);
+        childAccessValidator.validateReadAccess(memberId, childId);
+
+        Calendar calendar = calendarMapper.findActiveCalendarById(childId, calendarId)
+                .orElseThrow(() -> new CalendarException(CalendarErrorCode.NOT_FOUND));
+
+        return ApiResponse.success("일정 조회 성공", toDto(calendar));
+    }
+
     @Transactional
     public ApiResponse<CalendarDto> createCalendar(UUID memberId, Long childId, CalendarRequest request) {
         log.info("Creating calendar for child: {}", childId);
