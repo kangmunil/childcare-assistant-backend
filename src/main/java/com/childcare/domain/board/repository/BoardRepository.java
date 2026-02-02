@@ -12,6 +12,8 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
 
     Optional<Board> findByBoCode(String boCode);
 
+    Optional<Board> findByBoSlug(String boSlug);
+
     List<Board> findByBoUseYn(String boUseYn);
 
     Optional<Board> findByBoSeqAndBoUseYn(Long boSeq, String boUseYn);

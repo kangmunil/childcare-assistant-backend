@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,6 +36,17 @@ public class GrowthHistoryController {
 
         GrowthHistoryResponse response = growthHistoryService.createHistory(memberId, childId, request);
         return ResponseEntity.ok(ApiResponse.success("성장 이력 등록 성공", response));
+    }
+
+    @GetMapping("/{historyId}")
+    public ResponseEntity<ApiResponse<GrowthHistoryResponse>> getHistory(
+            @PathVariable Long childId,
+            @PathVariable Long historyId) {
+        UUID memberId = getMemberId();
+        log.info("Get growth history {} request for child: {}", historyId, childId);
+
+        GrowthHistoryResponse response = growthHistoryService.getHistory(memberId, childId, historyId);
+        return ResponseEntity.ok(ApiResponse.success("성장 이력 단건 조회 성공", response));
     }
 
     @PutMapping("/{historyId}")

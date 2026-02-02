@@ -31,6 +31,9 @@ public class BoardItem {
     @Column(name = "content", nullable = false)
     private String content;
 
+    @Column(name = "bi_category", length = 20)
+    private String biCategory;
+
     @Column(name = "read_count")
     private Integer readCount;
 

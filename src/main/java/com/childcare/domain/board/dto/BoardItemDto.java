@@ -19,6 +19,7 @@ public class BoardItemDto {
     private String boardTitle;
     private String title;
     private String content;
+    private String category;
     private Integer readCount;
     private Integer likeCount;
     private String fixYn;

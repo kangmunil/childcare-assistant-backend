@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class BoardSearchRequest {
     private String searchType;   // title, content, titleContent, author
     private String keyword;
+    private String category;
     private Integer page;        // 페이지 번호 (0부터 시작)
     private Integer size;        // 페이지 크기 (기본값: 20)
 
