@@ -137,7 +137,7 @@
     <sql id="FromItem">
         <![CDATA[
         FROM cc_diary_item
-        WHERE delete_yn IS NULL OR delete_yn != 'Y'
+        WHERE (delete_yn IS NULL OR delete_yn != 'Y')
         ]]>
     </sql>
 

@@ -20,7 +20,7 @@ public interface ChecklistMapper {
     boolean existsChecklistItem(@Param("itemId") Long itemId);
 
     // 체크 여부 확인
-    boolean isChecked(@Param("childId") Long childId, @Param("itemId") Long itemId);
+    int isChecked(@Param("childId") Long childId, @Param("itemId") Long itemId);
 
     // 체크 추가
     void insertCheck(@Param("childId") Long childId, @Param("itemId") Long itemId,

@@ -64,7 +64,7 @@
               AND c.ch_seq = #{childId}
               AND h.reg_date >= DATE_TRUNC('month', NOW() - INTERVAL '4 months')
         ) sub
-        WHERE rn = 1
+        WHERE rn < 6
         ORDER BY month
         ]]>
     </select>

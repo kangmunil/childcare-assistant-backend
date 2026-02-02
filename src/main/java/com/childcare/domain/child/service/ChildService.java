@@ -121,7 +121,11 @@ public class ChildService {
         child.setName(request.getName());
         child.setBirthDay(request.getBirthDay());
         child.setBirthTime(request.getBirthTime());
-        child.setGender(request.getGender());
+        // gender: "male"/"female" → "M"/"F" 변환
+        String gender = request.getGender();
+        if ("male".equalsIgnoreCase(gender)) gender = "M";
+        else if ("female".equalsIgnoreCase(gender)) gender = "F";
+        child.setGender(gender);
         child.setHeight(request.getHeight());
         child.setWeight(request.getWeight());
         child.setMemo(request.getMemo());
