@@ -15,6 +15,8 @@ import java.util.UUID;
 public class BoardItemListDto {
     private Long id;
     private String title;
+    private String content;
+    private String category;
     private Integer readCount;
     private Integer likeCount;
     private Integer commentCount;

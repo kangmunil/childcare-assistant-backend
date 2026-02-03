@@ -15,6 +15,7 @@ public interface BoardMapper {
     List<BoardItemListDto> searchItems(
             @Param("boardId") Long boardId,
             @Param("postcode") Integer postcode,
+            @Param("category") String category,
             @Param("searchType") String searchType,
             @Param("keyword") String keyword,
             @Param("offset") int offset,
@@ -25,6 +26,7 @@ public interface BoardMapper {
     int countSearchItems(
             @Param("boardId") Long boardId,
             @Param("postcode") Integer postcode,
+            @Param("category") String category,
             @Param("searchType") String searchType,
             @Param("keyword") String keyword
     );
@@ -36,8 +38,14 @@ public interface BoardMapper {
     );
 
     // 고정글 조회
-    List<BoardItemListDto> getFixedItems(@Param("boardId") Long boardId);
+    List<BoardItemListDto> getFixedItems(
+            @Param("boardId") Long boardId,
+            @Param("category") String category
+    );
 
     // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-    List<BoardItemListDto> getPopularItems(@Param("boardId") Long boardId);
+    List<BoardItemListDto> getPopularItems(
+            @Param("boardId") Long boardId,
+            @Param("category") String category
+    );
 }

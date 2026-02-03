@@ -9,28 +9,36 @@ import com.childcare.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/boards/{boardId}/items")
+@RequestMapping("/boards")
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class BoardItemController {
 
     private final BoardItemService boardItemService;
+    private static final java.util.Set<String> RESERVED_SLUGS = java.util.Set.of(
+            "new", "edit", "admin", "delete", "api", "manage", "search"
+    );
 
     /**
      * 게시글 목록 조회
      * GET /boards/{boardId}/items?searchType=title&keyword=검색어&page=0&size=20
      */
-    @GetMapping
+    @GetMapping("/{boardId:\\d+}/items")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getItemList(
             @PathVariable Long boardId,
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         UUID memberId = getMemberId();
@@ -39,6 +47,7 @@ public class BoardItemController {
         BoardSearchRequest searchRequest = BoardSearchRequest.builder()
                 .searchType(searchType)
                 .keyword(keyword)
+                .category(category)
                 .page(page)
                 .size(size)
                 .build();
@@ -48,10 +57,40 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 목록 조회 (slug 기반)
+     * GET /boards/{slug}/items
+     */
+    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getItemListBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @RequestParam(required = false) String searchType,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        BoardSearchRequest searchRequest = BoardSearchRequest.builder()
+                .searchType(searchType)
+                .keyword(keyword)
+                .category(category)
+                .page(page)
+                .size(size)
+                .build();
+
+        ApiResponse<Map<String, Object>> response = boardItemService.getItemListBySlug(memberId, normalizedSlug, searchRequest);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 상세 조회
      * GET /boards/{boardId}/items/{itemId}
      */
-    @GetMapping("/{itemId}")
+    @GetMapping("/{boardId:\\d+}/items/{itemId}")
     public ResponseEntity<ApiResponse<BoardItemDto>> getItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
@@ -63,10 +102,27 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 상세 조회 (slug 기반)
+     * GET /boards/{slug}/items/{itemId}
+     */
+    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    public ResponseEntity<ApiResponse<BoardItemDto>> getItemBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<BoardItemDto> response = boardItemService.getItemBySlug(memberId, normalizedSlug, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 작성
      * POST /boards/{boardId}/items
      */
-    @PostMapping
+    @PostMapping("/{boardId:\\d+}/items")
     public ResponseEntity<ApiResponse<BoardItemDto>> createItem(
             @PathVariable Long boardId,
             @RequestBody BoardItemRequest request) {
@@ -78,10 +134,28 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 작성 (slug 기반)
+     * POST /boards/{slug}/items
+     */
+    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
+    public ResponseEntity<ApiResponse<BoardItemDto>> createItemBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @RequestBody BoardItemRequest request) {
+        String normalizedSlug = normalizeSlug(slug);
+
+        UUID memberId = getMemberId();
+        ApiResponse<BoardItemDto> response = boardItemService.createItemBySlug(memberId, normalizedSlug, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 수정
      * PUT /boards/{boardId}/items/{itemId}
      */
-    @PutMapping("/{itemId}")
+    @PutMapping("/{boardId:\\d+}/items/{itemId}")
     public ResponseEntity<ApiResponse<BoardItemDto>> updateItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -97,7 +171,7 @@ public class BoardItemController {
      * 게시글 삭제
      * DELETE /boards/{boardId}/items/{itemId}
      */
-    @DeleteMapping("/{itemId}")
+    @DeleteMapping("/{boardId:\\d+}/items/{itemId}")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
@@ -112,7 +186,7 @@ public class BoardItemController {
      * 게시글 공감
      * POST /boards/{boardId}/items/{itemId}/like
      */
-    @PostMapping("/{itemId}/like")
+    @PostMapping("/{boardId:\\d+}/items/{itemId}/like")
     public ResponseEntity<ApiResponse<Integer>> likeItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
@@ -127,7 +201,7 @@ public class BoardItemController {
      * 게시글 공감 취소
      * DELETE /boards/{boardId}/items/{itemId}/like
      */
-    @DeleteMapping("/{itemId}/like")
+    @DeleteMapping("/{boardId:\\d+}/items/{itemId}/like")
     public ResponseEntity<ApiResponse<Integer>> unlikeItem(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
@@ -140,5 +214,15 @@ public class BoardItemController {
 
     private UUID getMemberId() {
         return SecurityUtil.getCurrentMemberId();
+    }
+
+    private String normalizeSlug(String slug) {
+        String normalized = slug.toLowerCase();
+        if (RESERVED_SLUGS.contains(normalized)) {
+            throw new com.childcare.global.exception.BoardException(
+                    com.childcare.global.exception.BoardException.BoardErrorCode.BOARD_SLUG_RESERVED
+            );
+        }
+        return normalized;
     }
 }

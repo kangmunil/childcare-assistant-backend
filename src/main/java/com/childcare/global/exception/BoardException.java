@@ -16,12 +16,14 @@ public class BoardException extends RuntimeException {
         // 게시판 관련
         BOARD_NOT_FOUND("BOARD_001", "게시판을 찾을 수 없습니다."),
         BOARD_NOT_AVAILABLE("BOARD_002", "사용할 수 없는 게시판입니다."),
+        BOARD_SLUG_RESERVED("BOARD_029", "사용할 수 없는 게시판 식별자입니다."),
 
         // 게시글 관련
         ITEM_NOT_FOUND("BOARD_003", "게시글을 찾을 수 없습니다."),
         ITEM_ALREADY_DELETED("BOARD_004", "이미 삭제된 게시글입니다."),
         ITEM_TITLE_REQUIRED("BOARD_026", "제목은 필수 입력값입니다."),
         ITEM_CONTENT_REQUIRED("BOARD_027", "내용은 필수 입력값입니다."),
+        ITEM_CATEGORY_INVALID("BOARD_030", "유효하지 않은 카테고리입니다."),
 
         // 댓글 관련
         COMMENT_NOT_FOUND("BOARD_005", "댓글을 찾을 수 없습니다."),

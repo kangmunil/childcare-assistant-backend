@@ -39,54 +39,16 @@ public class BoardItemService {
      */
     public ApiResponse<Map<String, Object>> getItemList(UUID memberId, Long boardId, BoardSearchRequest searchRequest) {
         log.info("Get item list for board: {}, member: {}", boardId, memberId);
-
-        // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return getItemListInternal(memberId, board, searchRequest);
+    }
 
-        // 읽기 권한 검증
-        Member member = getMember(memberId);
-        validateReadPermission(board, member);
-
-        // 동네 게시판인 경우 우편번호 검증
-        Integer userPostcode = null;
-        if ("Y".equals(board.getBoNeighborYn())) {
-            userPostcode = validateNeighborAuth(member);
-        }
-
-        // 고정글 조회
-        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId);
-        Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
-
-        // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId);
-        popularDtos = popularDtos.stream()
-                .filter(item -> !fixedIds.contains(item.getId()))
-                .peek(item -> item.setPopular(true))
-                .collect(Collectors.toList());
-
-        // 인기글 제외용 ID Set
-        Set<Long> popularIds = popularDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
-
-        // 일반글 조회
-        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest);
-        @SuppressWarnings("unchecked")
-        List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
-
-        // 고정글, 인기글 제외
-        normalDtos = normalDtos.stream()
-                .filter(item -> !fixedIds.contains(item.getId()) && !popularIds.contains(item.getId()))
-                .collect(Collectors.toList());
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("fixedItems", fixedDtos);
-        result.put("popularItems", popularDtos);
-        result.put("items", normalDtos);
-        result.put("totalElements", searchResult.get("totalElements"));
-        result.put("totalPages", searchResult.get("totalPages"));
-        result.put("currentPage", searchResult.get("currentPage"));
-        result.put("size", searchResult.get("size"));
-
-        return ApiResponse.success("게시글 목록 조회 성공", result);
+    /**
+     * 게시글 목록 조회 (slug 기반)
+     */
+    public ApiResponse<Map<String, Object>> getItemListBySlug(UUID memberId, String slug, BoardSearchRequest searchRequest) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return getItemListInternal(memberId, board, searchRequest);
     }
 
     /**
@@ -95,39 +57,20 @@ public class BoardItemService {
     @Transactional
     public ApiResponse<BoardItemDto> getItem(UUID memberId, Long boardId, Long itemId) {
         log.info("Get item: {} for board: {}, member: {}", itemId, boardId, memberId);
-
-        // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        return getItemInternal(memberId, board, itemId);
+    }
 
-        // 읽기 권한 검증
-        Member member = getMember(memberId);
-        validateReadPermission(board, member);
+    /**
+     * 게시글 상세 조회 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> getItemBySlug(UUID memberId, String slug, Long itemId) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Get item: {} for board slug: {}, member: {}", itemId, normalizedSlug, memberId);
 
-        // 동네 게시판인 경우 동네 검증
-        if ("Y".equals(board.getBoNeighborYn())) {
-            Integer userPostcode = validateNeighborAuth(member);
-            if (!userPostcode.equals(item.getRegUserPostcode())) {
-                throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
-            }
-        }
-
-        // 조회수 증가 (중복 방지)
-        increaseReadCount(itemId, memberId);
-
-        // 첨부파일 조회
-        List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
-
-        // 댓글 수 조회
-        long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
-
-        // 공감 여부
-        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
-
-        // DTO 변환
-        BoardItemDto dto = toDto(item, files, (int) commentCount, liked, memberId);
-
-        return ApiResponse.success("게시글 조회 성공", dto);
+        return getItemInternal(memberId, board, itemId);
     }
 
     /**
@@ -139,49 +82,19 @@ public class BoardItemService {
 
         // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return createItemInternal(memberId, board, request);
+    }
 
-        // 작성 권한 검증
-        Member member = getMember(memberId);
-        validateWritePermission(board, member);
+    /**
+     * 게시글 작성 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> createItemBySlug(UUID memberId, String slug, BoardItemRequest request) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Create item for board slug: {}, member: {}", normalizedSlug, memberId);
 
-        // 필수값 검증
-        validateItemRequest(request);
-
-        // 금지어 검사
-        if (forbiddenWordChecker.containsForbiddenWord(request.getTitle(), request.getContent())) {
-            throw new BoardException(BoardErrorCode.FORBIDDEN_WORD_DETECTED);
-        }
-
-        // 동네 게시판인 경우 우편번호 검증
-        Integer userPostcode = null;
-        if ("Y".equals(board.getBoNeighborYn())) {
-            userPostcode = validateNeighborAuth(member);
-        }
-
-        // 고정 여부 (ADMIN만 설정 가능)
-        String fixYn = null;
-        if ("Y".equals(request.getFixYn()) && "ADMIN".equals(member.getRole().name())) {
-            fixYn = "Y";
-        }
-
-        // 게시글 저장
-        BoardItem item = BoardItem.builder()
-                .boSeq(boardId)
-                .title(request.getTitle())
-                .content(request.getContent())
-                .readCount(0)
-                .likeCount(0)
-                .fixYn(fixYn)
-                .regUserPostcode(userPostcode)
-                .regId(memberId)
-                .regDate(LocalDateTime.now())
-                .build();
-
-        BoardItem savedItem = boardItemRepository.save(item);
-
-        BoardItemDto dto = toDto(savedItem, Collections.emptyList(), 0, false, memberId);
-
-        return ApiResponse.success("게시글 작성 성공", dto);
+        return createItemInternal(memberId, board, request);
     }
 
     /**
@@ -215,6 +128,7 @@ public class BoardItemService {
         // 게시글 수정
         item.setTitle(request.getTitle());
         item.setContent(request.getContent());
+        item.setBiCategory(normalizeCategory(request.getCategory()));
         item.setUpdateId(memberId);
         item.setUpdateDate(LocalDateTime.now());
 
@@ -328,6 +242,63 @@ public class BoardItemService {
         return board;
     }
 
+    private Board validateBoardBySlug(String slug) {
+        Board board = boardRepository.findByBoSlug(slug)
+                .orElseGet(() -> boardRepository.findByBoCode(slug.toUpperCase(Locale.ROOT))
+                        .orElseThrow(() -> new BoardException(BoardErrorCode.BOARD_NOT_FOUND)));
+
+        if (!"Y".equals(board.getBoUseYn())) {
+            throw new BoardException(BoardErrorCode.BOARD_NOT_AVAILABLE);
+        }
+        return board;
+    }
+
+    private ApiResponse<BoardItemDto> createItemInternal(UUID memberId, Board board, BoardItemRequest request) {
+        // 작성 권한 검증
+        Member member = getMember(memberId);
+        validateWritePermission(board, member);
+
+        // 필수값 검증
+        validateItemRequest(request);
+
+        // 금지어 검사
+        if (forbiddenWordChecker.containsForbiddenWord(request.getTitle(), request.getContent())) {
+            throw new BoardException(BoardErrorCode.FORBIDDEN_WORD_DETECTED);
+        }
+
+        // 동네 게시판인 경우 우편번호 검증
+        Integer userPostcode = null;
+        if ("Y".equals(board.getBoNeighborYn())) {
+            userPostcode = validateNeighborAuth(member);
+        }
+
+        // 고정 여부 (ADMIN만 설정 가능)
+        String fixYn = null;
+        if ("Y".equals(request.getFixYn()) && "ADMIN".equals(member.getRole().name())) {
+            fixYn = "Y";
+        }
+
+        // 게시글 저장
+        BoardItem item = BoardItem.builder()
+                .boSeq(board.getBoSeq())
+                .title(request.getTitle())
+                .content(request.getContent())
+                .biCategory(normalizeCategory(request.getCategory()))
+                .readCount(0)
+                .likeCount(0)
+                .fixYn(fixYn)
+                .regUserPostcode(userPostcode)
+                .regId(memberId)
+                .regDate(LocalDateTime.now())
+                .build();
+
+        BoardItem savedItem = boardItemRepository.save(item);
+
+        BoardItemDto dto = toDto(savedItem, Collections.emptyList(), 0, false, memberId);
+
+        return ApiResponse.success("게시글 작성 성공", dto);
+    }
+
     private BoardItem validateItem(Long itemId) {
         BoardItem item = boardItemRepository.findById(itemId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.ITEM_NOT_FOUND));
@@ -398,6 +369,9 @@ public class BoardItemService {
         if (request.getContent() == null || request.getContent().isBlank()) {
             throw new BoardException(BoardErrorCode.ITEM_CONTENT_REQUIRED);
         }
+        if (request.getCategory() == null || request.getCategory().isBlank()) {
+            throw new BoardException(BoardErrorCode.ITEM_CATEGORY_INVALID);
+        }
     }
 
     private void increaseReadCount(Long itemId, UUID memberId) {
@@ -417,7 +391,82 @@ public class BoardItemService {
         }
     }
 
-    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest) {
+    private ApiResponse<BoardItemDto> getItemInternal(UUID memberId, Board board, Long itemId) {
+        BoardItem item = validateItem(itemId);
+
+        // 읽기 권한 검증
+        Member member = getMember(memberId);
+        validateReadPermission(board, member);
+
+        // 동네 게시판인 경우 동네 검증
+        if ("Y".equals(board.getBoNeighborYn())) {
+            Integer userPostcode = validateNeighborAuth(member);
+            if (!userPostcode.equals(item.getRegUserPostcode())) {
+                throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
+            }
+        }
+
+        // 조회수 증가 (중복 방지)
+        increaseReadCount(itemId, memberId);
+
+        // 첨부파일 조회
+        List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
+
+        // 댓글 수 조회
+        long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
+
+        // 공감 여부
+        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
+
+        // DTO 변환
+        BoardItemDto dto = toDto(item, files, (int) commentCount, liked, memberId);
+
+        return ApiResponse.success("게시글 조회 성공", dto);
+    }
+
+    private ApiResponse<Map<String, Object>> getItemListInternal(UUID memberId, Board board, BoardSearchRequest searchRequest) {
+        // 읽기 권한 검증
+        Member member = getMember(memberId);
+        validateReadPermission(board, member);
+
+        // 동네 게시판인 경우 우편번호 검증
+        Integer userPostcode = null;
+        if ("Y".equals(board.getBoNeighborYn())) {
+            userPostcode = validateNeighborAuth(member);
+        }
+
+        String category = normalizeCategory(searchRequest.getCategory());
+        Long boardId = board.getBoSeq();
+
+        // 고정글 조회
+        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category);
+        Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
+
+        // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
+        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category);
+        popularDtos = popularDtos.stream()
+                .filter(item -> !fixedIds.contains(item.getId()))
+                .peek(item -> item.setPopular(true))
+                .collect(Collectors.toList());
+
+        // 일반글 조회
+        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category);
+        @SuppressWarnings("unchecked")
+        List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("fixedItems", fixedDtos);
+        result.put("popularItems", popularDtos);
+        result.put("items", normalDtos);
+        result.put("totalElements", searchResult.get("totalElements"));
+        result.put("totalPages", searchResult.get("totalPages"));
+        result.put("currentPage", searchResult.get("currentPage"));
+        result.put("size", searchResult.get("size"));
+
+        return ApiResponse.success("게시글 목록 조회 성공", result);
+    }
+
+    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest, String category) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
         int page = searchRequest.getPage();
@@ -430,8 +479,8 @@ public class BoardItemService {
         }
 
         // Mapper로 검색
-        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, searchType, keyword, offset, size);
-        int totalCount = boardMapper.countSearchItems(boardId, userPostcode, searchType, keyword);
+        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, searchType, keyword, offset, size);
+        int totalCount = boardMapper.countSearchItems(boardId, userPostcode, category, searchType, keyword);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 
         Map<String, Object> result = new HashMap<>();
@@ -472,6 +521,7 @@ public class BoardItemService {
                 .boardTitle(boardTitle)
                 .title(item.getTitle())
                 .content(item.getContent())
+                .category(item.getBiCategory())
                 .readCount(item.getReadCount())
                 .likeCount(item.getLikeCount())
                 .fixYn(item.getFixYn())
@@ -486,5 +536,16 @@ public class BoardItemService {
                 .liked(liked)
                 .isAuthor(item.getRegId().equals(memberId))
                 .build();
+    }
+
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return null;
+        }
+        String normalized = category.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("qna", "daily", "tip").contains(normalized)) {
+            throw new BoardException(BoardErrorCode.ITEM_CATEGORY_INVALID);
+        }
+        return normalized;
     }
 }

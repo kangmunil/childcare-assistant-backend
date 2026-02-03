@@ -5,6 +5,8 @@
     <resultMap id="boardItemListResultMap" type="com.childcare.domain.board.dto.BoardItemListDto">
         <id property="id" column="bi_seq"/>
         <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="category" column="bi_category"/>
         <result property="readCount" column="read_count"/>
         <result property="likeCount" column="like_count"/>
         <result property="commentCount" column="comment_count"/>
@@ -19,13 +21,18 @@
         FROM board_item i
         JOIN member m ON i.reg_id = m.id
         WHERE i.bo_seq = #{boardId}
-          AND i.fix_yn IS NULL
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
     </sql>
 
     <sql id="wherePostcode">
         <if test="postcode != null">
             AND i.reg_user_postcode = #{postcode}
+        </if>
+    </sql>
+
+    <sql id="whereCategory">
+        <if test="category != null and category != ''">
+            AND i.bi_category = #{category}
         </if>
     </sql>
 
@@ -54,6 +61,8 @@
         SELECT
             i.bi_seq,
             i.title,
+            i.content,
+            i.bi_category,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
@@ -64,6 +73,7 @@
             CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
         <include refid="FromboardItem"/>
         <include refid="wherePostcode"/>
+        <include refid="whereCategory"/>
         <include refid="searchCondition"/>
         ORDER BY i.reg_date DESC
         LIMIT #{limit} OFFSET #{offset}
@@ -74,6 +84,7 @@
         SELECT COUNT(*)
         <include refid="FromboardItem"/>
         <include refid="wherePostcode"/>
+        <include refid="whereCategory"/>
         <include refid="searchCondition"/>
     </select>
 
@@ -132,6 +143,8 @@
         SELECT
             i.bi_seq,
             i.title,
+            i.content,
+            i.bi_category,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
@@ -145,6 +158,9 @@
         WHERE i.bo_seq = #{boardId}
           AND i.fix_yn = 'Y'
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        <if test="category != null and category != ''">
+          AND i.bi_category = #{category}
+        </if>
         ORDER BY i.reg_date DESC
     </select>
 
@@ -153,6 +169,8 @@
         SELECT
             i.bi_seq,
             i.title,
+            i.content,
+            i.bi_category,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
@@ -166,6 +184,9 @@
         WHERE i.bo_seq = #{boardId}
           AND i.fix_yn IS NULL
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        <if test="category != null and category != ''">
+          AND i.bi_category = #{category}
+        </if>
         ORDER BY (COALESCE(i.read_count, 0) + COALESCE(i.like_count, 0)) DESC
         LIMIT 3
     </select>

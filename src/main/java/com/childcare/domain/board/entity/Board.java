@@ -22,6 +22,9 @@ public class Board {
     @Column(name = "bo_code", nullable = false)
     private String boCode;
 
+    @Column(name = "bo_slug", length = 50, unique = true)
+    private String boSlug;
+
     @Column(name = "bo_title", nullable = false)
     private String boTitle;
 
