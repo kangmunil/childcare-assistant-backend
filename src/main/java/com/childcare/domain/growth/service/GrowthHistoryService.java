@@ -37,6 +37,7 @@ public class GrowthHistoryService {
                 .chSeq(childId)
                 .height(request.getHeight())
                 .weight(request.getWeight())
+                .ghDate(request.getGhDate())
                 .regId(memberId)
                 .build();
 
@@ -57,7 +58,7 @@ public class GrowthHistoryService {
         ChildGrowHistory history = growthHistoryMapper.findActiveHistoryById(childId, historyId)
                 .orElseThrow(() -> new GrowthHistoryException(GrowthHistoryErrorCode.NOT_FOUND));
 
-        growthHistoryMapper.updateHistory(childId, historyId, request.getHeight(), request.getWeight());
+        growthHistoryMapper.updateHistory(childId, historyId, request.getHeight(), request.getWeight(), request.getGhDate());
 
         ChildGrowHistory updatedHistory = growthHistoryMapper.findActiveHistoryById(childId, history.getGhSeq())
                 .orElseThrow(() -> new GrowthHistoryException(GrowthHistoryErrorCode.NOT_FOUND));
@@ -115,6 +116,7 @@ public class GrowthHistoryService {
                 .childId(history.getChSeq())
                 .height(history.getHeight())
                 .weight(history.getWeight())
+                .ghDate(history.getGhDate())
                 .recordedAt(history.getRegDate())
                 .build();
     }

@@ -165,6 +165,9 @@
     <select id="findDiaryStatsByPeriod" resultMap="DiaryStatResultMap">
         SELECT
             <choose>
+                <when test="periodType == 'day'">
+                    TO_CHAR(DATE_TRUNC('day', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
+                </when>
                 <when test="periodType == 'week'">
                     TO_CHAR(DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS week,
                 </when>
@@ -186,6 +189,9 @@
           AND d.di_date BETWEEN #{startDate} AND #{endDate}
         GROUP BY
             <choose>
+                <when test="periodType == 'day'">
+                    DATE_TRUNC('day', TO_DATE(d.di_date, 'YYYY-MM-DD')),
+                </when>
                 <when test="periodType == 'week'">
                     DATE_TRUNC('week', TO_DATE(d.di_date, 'YYYY-MM-DD')),
                 </when>

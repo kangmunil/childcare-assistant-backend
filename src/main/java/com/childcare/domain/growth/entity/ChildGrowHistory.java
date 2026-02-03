@@ -36,6 +36,9 @@ public class ChildGrowHistory {
     @Column(name = "weight", nullable = false, length = 10)
     private String weight;
 
+    @Column(name = "gh_date", length = 10)
+    private String ghDate;
+
     @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
     private UUID regId;
 
