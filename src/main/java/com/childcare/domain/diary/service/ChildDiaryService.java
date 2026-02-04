@@ -4,10 +4,13 @@ import com.childcare.domain.child.entity.Child;
 import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.diary.dto.ChildDiaryDto;
 import com.childcare.domain.diary.dto.ChildDiaryRequest;
+import com.childcare.domain.diary.dto.DiaryMemoDto;
+import com.childcare.domain.diary.dto.DiaryMemoRequest;
 import com.childcare.domain.diary.dto.DiaryStatDto;
 import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
+import com.childcare.domain.diary.entity.ChildDiaryMemo;
 import com.childcare.domain.diary.mapper.DiaryMapper;
 import com.childcare.domain.diary.repository.CcDiaryItemRepository;
 import com.childcare.domain.diary.repository.ChildDiaryRepository;
@@ -241,5 +244,106 @@ public class ChildDiaryService {
                 .build();
 
         return ApiResponse.success("일지 통계 조회 성공", data);
+    }
+
+    // ==================== 메모 관련 메서드 ====================
+
+    /**
+     * 특정 날짜의 메모 조회
+     */
+    public ApiResponse<DiaryMemoDto> getMemo(UUID memberId, Long childId, String date) {
+        log.info("Fetching memo for child: {} on date: {}", childId, date);
+        childAccessValidator.validateReadAccess(memberId, childId);
+
+        ChildDiaryMemo memo = diaryMapper.findActiveMemoByChildAndDate(childId, date)
+                .orElse(null);
+
+        if (memo == null) {
+            return ApiResponse.success("메모 조회 성공", null);
+        }
+
+        return ApiResponse.success("메모 조회 성공", toMemoDto(memo));
+    }
+
+    /**
+     * 메모 생성
+     */
+    @Transactional
+    public ApiResponse<DiaryMemoDto> createMemo(UUID memberId, Long childId, DiaryMemoRequest request) {
+        log.info("Creating memo for child: {} on date: {}", childId, request.getDate());
+        childAccessValidator.validateWriteAccess(memberId, childId);
+
+        if (request.getDate() == null || request.getDate().isBlank()) {
+            throw new DiaryException(DiaryErrorCode.DATE_REQUIRED);
+        }
+
+        // 해당 날짜에 이미 메모가 있는지 확인
+        ChildDiaryMemo existingMemo = diaryMapper.findActiveMemoByChildAndDate(childId, request.getDate())
+                .orElse(null);
+
+        if (existingMemo != null) {
+            throw new DiaryException(DiaryErrorCode.MEMO_ALREADY_EXISTS);
+        }
+
+        ChildDiaryMemo memo = ChildDiaryMemo.builder()
+                .chSeq(childId)
+                .dmDate(request.getDate())
+                .memo(request.getMemo())
+                .regId(memberId)
+                .build();
+
+        diaryMapper.insertMemo(memo);
+
+        ChildDiaryMemo savedMemo = diaryMapper.findActiveMemoById(childId, memo.getDmSeq())
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.MEMO_NOT_FOUND));
+
+        return ApiResponse.success("메모 등록 성공", toMemoDto(savedMemo));
+    }
+
+    /**
+     * 메모 수정
+     */
+    @Transactional
+    public ApiResponse<DiaryMemoDto> updateMemo(UUID memberId, Long childId, Long memoId, DiaryMemoRequest request) {
+        log.info("Updating memo {} for child: {}", memoId, childId);
+        childAccessValidator.validateWriteAccess(memberId, childId);
+
+        ChildDiaryMemo memo = diaryMapper.findActiveMemoById(childId, memoId)
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.MEMO_NOT_FOUND));
+
+        String newDate = (request.getDate() != null && !request.getDate().isBlank())
+                ? request.getDate() : memo.getDmDate();
+
+        diaryMapper.updateMemo(childId, memoId, newDate, request.getMemo());
+
+        ChildDiaryMemo updatedMemo = diaryMapper.findActiveMemoById(childId, memoId)
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.MEMO_NOT_FOUND));
+
+        return ApiResponse.success("메모 수정 성공", toMemoDto(updatedMemo));
+    }
+
+    /**
+     * 메모 삭제
+     */
+    @Transactional
+    public ApiResponse<Void> deleteMemo(UUID memberId, Long childId, Long memoId) {
+        log.info("Deleting memo {} for child: {}", memoId, childId);
+        childAccessValidator.validateDeleteAccess(memberId, childId);
+
+        diaryMapper.findActiveMemoById(childId, memoId)
+                .orElseThrow(() -> new DiaryException(DiaryErrorCode.MEMO_NOT_FOUND));
+
+        diaryMapper.softDeleteMemo(childId, memoId, memberId);
+
+        return ApiResponse.success("메모 삭제 성공", null);
+    }
+
+    private DiaryMemoDto toMemoDto(ChildDiaryMemo memo) {
+        return DiaryMemoDto.builder()
+                .id(memo.getDmSeq())
+                .childId(memo.getChSeq())
+                .date(memo.getDmDate())
+                .memo(memo.getMemo())
+                .build();
     }
 }

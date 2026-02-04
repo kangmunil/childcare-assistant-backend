@@ -7,6 +7,7 @@
         <result property="chSeq" column="ch_seq"/>
         <result property="height" column="height"/>
         <result property="weight" column="weight"/>
+        <result property="ghDate" column="gh_date"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regDate" column="reg_date"/>
         <result property="deleteYn" column="delete_yn"/>
@@ -25,14 +26,15 @@
     </select>
 
     <insert id="insertHistory" parameterType="com.childcare.domain.growth.entity.ChildGrowHistory" useGeneratedKeys="true" keyProperty="ghSeq" keyColumn="gh_seq">
-        INSERT INTO child_grow_history (ch_seq, height, weight, reg_id, reg_date, delete_yn)
-        VALUES (#{chSeq}, #{height}, #{weight}, #{regId, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid, NOW(), 'N')
+        INSERT INTO child_grow_history (ch_seq, height, weight, gh_date, reg_id, reg_date, delete_yn)
+        VALUES (#{chSeq}, #{height}, #{weight}, #{ghDate}, #{regId, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid, NOW(), 'N')
     </insert>
 
     <update id="updateHistory">
         UPDATE child_grow_history
         SET height = #{height},
-            weight = #{weight}
+            weight = #{weight},
+            gh_date = #{ghDate}
         WHERE ch_seq = #{childId}
           AND gh_seq = #{historyId}
           AND (delete_yn IS NULL OR delete_yn != 'Y')

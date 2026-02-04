@@ -3,6 +3,7 @@ package com.childcare.domain.child.controller;
 import com.childcare.domain.child.dto.ChildDto;
 import com.childcare.domain.child.dto.ChildRequest;
 import com.childcare.domain.child.dto.GrowthHistoryDto;
+import com.childcare.domain.child.dto.GrowthHistoryStatDto;
 import com.childcare.domain.child.service.ChildService;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.util.SecurityUtil;
@@ -73,6 +74,25 @@ public class ChildController {
         log.info("Get growth history for child {} request for member: {}", id, memberId);
 
         ApiResponse<List<GrowthHistoryDto>> response = childService.getGrowthHistory(memberId, id);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 기간별 성장 통계 조회
+     * GET /children/{id}/history/stats?type=week&startDate=2025-12-01&endDate=2025-12-07
+     * GET /children/{id}/history/stats?type=month&startDate=2025-01-01&endDate=2025-12-31
+     * GET /children/{id}/history/stats?type=year&startDate=2024-01-01&endDate=2025-12-31
+     */
+    @GetMapping("/{id}/history/stats")
+    public ResponseEntity<ApiResponse<GrowthHistoryStatDto>> getGrowthHistoryStats(
+            @PathVariable Long id,
+            @RequestParam String type,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        UUID memberId = getMemberId();
+        log.info("Get growth history stats for child {} request for member: {}, type: {}, from {} to {}", id, memberId, type, startDate, endDate);
+
+        ApiResponse<GrowthHistoryStatDto> response = childService.getGrowthHistoryStats(memberId, id, type, startDate, endDate);
         return ResponseEntity.ok(response);
     }
 

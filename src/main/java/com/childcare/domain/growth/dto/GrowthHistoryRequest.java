@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class GrowthHistoryRequest {
     private String height;
     private String weight;
+    private String ghDate;  // YYYY-MM-DD
 }

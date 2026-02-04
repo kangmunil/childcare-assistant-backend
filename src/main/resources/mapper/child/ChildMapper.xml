@@ -69,4 +69,58 @@
         ]]>
     </select>
 
+    <resultMap id="growthStatResultMap" type="com.childcare.domain.child.dto.GrowthHistoryStatDto$GrowthStat">
+        <result property="period" column="week"/>
+        <result property="height" column="total_height"/>
+        <result property="weight" column="total_weight"/>
+    </resultMap>
+
+    <select id="findGrowthHistoryStatsByPeriod" resultMap="growthStatResultMap">
+        SELECT
+        <choose>
+            <when test="periodType == 'day'">
+                TO_CHAR(TO_DATE(gh.gh_date, 'YYYY-MM-DD'), 'YYYY-MM-DD') AS week
+            </when>
+            <when test="periodType == 'week'">
+                TO_CHAR((DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date, 'YYYY-MM-DD') AS week
+            </when>
+            <when test="periodType == 'month'">
+                TO_CHAR(DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::date, 'YYYY-MM') AS week
+            </when>
+            <when test="periodType == 'year'">
+                TO_CHAR(DATE_TRUNC('year', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::date, 'YYYY') AS week
+            </when>
+            <otherwise>
+                TO_CHAR((DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date, 'YYYY-MM-DD') AS week
+            </otherwise>
+        </choose>
+        , MAX(NULLIF(gh.height, '0')) AS total_height
+        , MAX(NULLIF(gh.weight, '0')) AS total_weight
+        FROM child c
+        JOIN child_grow_history gh ON c.ch_seq = gh.ch_seq
+            AND (gh.delete_yn IS NULL OR gh.delete_yn != 'Y')
+        WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+            AND c.ch_seq = #{childId}
+            AND gh.gh_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY
+        <choose>
+            <when test="periodType == 'day'">
+                TO_CHAR(TO_DATE(gh.gh_date, 'YYYY-MM-DD'), 'YYYY-MM-DD')
+            </when>
+            <when test="periodType == 'week'">
+                (DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date
+            </when>
+            <when test="periodType == 'month'">
+                DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))
+            </when>
+            <when test="periodType == 'year'">
+                DATE_TRUNC('year', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))
+            </when>
+            <otherwise>
+                (DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date
+            </otherwise>
+        </choose>
+        ORDER BY week
+    </select>
+
 </mapper>

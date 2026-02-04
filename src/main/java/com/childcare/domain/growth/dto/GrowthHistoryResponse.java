@@ -16,5 +16,6 @@ public class GrowthHistoryResponse {
     private Long childId;
     private String height;
     private String weight;
+    private String ghDate;  // YYYY-MM-DD
     private LocalDateTime recordedAt;
 }

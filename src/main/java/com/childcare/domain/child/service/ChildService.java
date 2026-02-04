@@ -3,6 +3,7 @@ package com.childcare.domain.child.service;
 import com.childcare.domain.child.dto.ChildDto;
 import com.childcare.domain.child.dto.ChildRequest;
 import com.childcare.domain.child.dto.GrowthHistoryDto;
+import com.childcare.domain.child.dto.GrowthHistoryStatDto;
 import com.childcare.domain.child.entity.Child;
 import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.child.repository.ChildRepository;
@@ -207,6 +208,39 @@ public class ChildService {
         List<GrowthHistoryDto> history = childMapper.findGrowthHistory(childId);
 
         return ApiResponse.success("성장 이력 조회 성공", history);
+    }
+
+    /**
+     * 기간별 성장 통계 조회
+     * @param memberId 회원 ID
+     * @param childId 자녀 ID
+     * @param periodType 기간 타입 (week, month, year)
+     * @param startDate 시작일 (YYYY-MM-DD)
+     * @param endDate 종료일 (YYYY-MM-DD)
+     */
+    public ApiResponse<GrowthHistoryStatDto> getGrowthHistoryStats(UUID memberId, Long childId, String periodType, String startDate, String endDate) {
+        log.info("Fetching growth history stats for child: {} periodType: {} from {} to {}", childId, periodType, startDate, endDate);
+
+        // 해당 회원의 자녀인지 확인
+        List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
+        boolean hasAccess = children.stream()
+                .anyMatch(c -> c.getChSeq().equals(childId));
+
+        if (!hasAccess) {
+            throw new ChildException(ChildErrorCode.NOT_FOUND);
+        }
+
+        List<GrowthHistoryStatDto.GrowthStat> stats = childMapper.findGrowthHistoryStatsByPeriod(childId, periodType, startDate, endDate);
+
+        GrowthHistoryStatDto data = GrowthHistoryStatDto.builder()
+                .childId(childId)
+                .periodType(periodType)
+                .startDate(startDate)
+                .endDate(endDate)
+                .stats(stats)
+                .build();
+
+        return ApiResponse.success("성장 통계 조회 성공", data);
     }
 
     private ChildDto toDto(Child child) {

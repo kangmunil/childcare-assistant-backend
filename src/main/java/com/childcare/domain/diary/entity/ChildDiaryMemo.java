@@ -1,11 +1,6 @@
-package com.childcare.domain.growth.entity;
+package com.childcare.domain.diary.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,29 +10,29 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "child_grow_history")
+@Table(name = "child_diary_memo")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChildGrowHistory {
+public class ChildDiaryMemo {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "gh_seq")
-    private Long ghSeq;
+    @Column(name = "dm_seq")
+    private Long dmSeq;
 
     @Column(name = "ch_seq", nullable = false)
     private Long chSeq;
 
-    @Column(name = "height", nullable = false, length = 20)
-    private String height;
+    @Column(name = "dm_date", nullable = false, length = 20)
+    private String dmDate;
 
-    @Column(name = "weight", nullable = false, length = 10)
-    private String weight;
+    @Column(name = "memo", columnDefinition = "TEXT")
+    private String memo;
 
-    @Column(name = "gh_date", length = 10)
-    private String ghDate;
+    @Column(name = "reg_ai_yn", length = 1)
+    private String regAiYn;
 
     @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
     private UUID regId;

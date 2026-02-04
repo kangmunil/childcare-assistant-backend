@@ -17,7 +17,9 @@ public class DiaryException extends RuntimeException {
         DATE_REQUIRED("DIARY_002", "날짜는 필수 입력값입니다."),
         TIME_REQUIRED("DIARY_003", "시간은 필수 입력값입니다."),
         ITEM_NOT_FOUND("DIARY_004", "존재하지 않는 항목입니다."),
-        NOT_FOUND("DIARY_005", "성장일지를 찾을 수 없습니다.");
+        NOT_FOUND("DIARY_005", "성장일지를 찾을 수 없습니다."),
+        MEMO_NOT_FOUND("DIARY_006", "메모를 찾을 수 없습니다."),
+        MEMO_ALREADY_EXISTS("DIARY_007", "해당 날짜에 이미 메모가 존재합니다.");
 
         private final String code;
         private final String message;
