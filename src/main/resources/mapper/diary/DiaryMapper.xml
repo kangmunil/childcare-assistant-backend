@@ -209,4 +209,62 @@
         ORDER BY week, i.cc_di_name
     </select>
 
+    <!-- ChildDiaryMemo 관련 쿼리 -->
+    <resultMap id="childDiaryMemoResultMap" type="com.childcare.domain.diary.entity.ChildDiaryMemo">
+        <id property="dmSeq" column="dm_seq"/>
+        <result property="chSeq" column="ch_seq"/>
+        <result property="dmDate" column="dm_date"/>
+        <result property="memo" column="memo"/>
+        <result property="regAiYn" column="reg_ai_yn"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="deleteDate" column="delete_date"/>
+    </resultMap>
+
+    <select id="findActiveMemoByChildAndDate" resultMap="childDiaryMemoResultMap">
+        <![CDATA[
+        SELECT *
+        FROM child_diary_memo
+        WHERE ch_seq = #{childId}
+          AND dm_date = #{dmDate}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </select>
+
+    <select id="findActiveMemoById" resultMap="childDiaryMemoResultMap">
+        <![CDATA[
+        SELECT *
+        FROM child_diary_memo
+        WHERE ch_seq = #{childId}
+          AND dm_seq = #{memoId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </select>
+
+    <insert id="insertMemo" parameterType="com.childcare.domain.diary.entity.ChildDiaryMemo" useGeneratedKeys="true" keyProperty="dmSeq" keyColumn="dm_seq">
+        INSERT INTO child_diary_memo (ch_seq, dm_date, memo, reg_id, reg_date, delete_yn)
+        VALUES (#{chSeq}, #{dmDate}, #{memo}, #{regId, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid, NOW(), 'N')
+    </insert>
+
+    <update id="updateMemo">
+        UPDATE child_diary_memo
+        SET dm_date = #{dmDate},
+            memo = #{memo}
+        WHERE ch_seq = #{childId}
+          AND dm_seq = #{memoId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </update>
+
+    <update id="softDeleteMemo">
+        UPDATE child_diary_memo
+        SET delete_yn = 'Y',
+            delete_id = #{deleteId, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid,
+            delete_date = NOW()
+        WHERE ch_seq = #{childId}
+          AND dm_seq = #{memoId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </update>
+
 </mapper>

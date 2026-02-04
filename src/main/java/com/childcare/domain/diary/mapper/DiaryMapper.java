@@ -1,9 +1,11 @@
 package com.childcare.domain.diary.mapper;
 
+import com.childcare.domain.diary.dto.DiaryMemoDto;
 import com.childcare.domain.diary.dto.DiaryStatDto;
 import com.childcare.domain.diary.dto.DiarySummaryDto;
 import com.childcare.domain.diary.entity.CcDiaryItem;
 import com.childcare.domain.diary.entity.ChildDiary;
+import com.childcare.domain.diary.entity.ChildDiaryMemo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -37,4 +39,17 @@ public interface DiaryMapper {
             @Param("periodType") String periodType,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
+
+    // ChildDiaryMemo 관련 쿼리
+    Optional<ChildDiaryMemo> findActiveMemoByChildAndDate(@Param("childId") Long childId, @Param("dmDate") String dmDate);
+
+    Optional<ChildDiaryMemo> findActiveMemoById(@Param("childId") Long childId, @Param("memoId") Long memoId);
+
+    void insertMemo(ChildDiaryMemo memo);
+
+    void updateMemo(@Param("childId") Long childId, @Param("memoId") Long memoId,
+                    @Param("dmDate") String dmDate, @Param("memo") String memo);
+
+    void softDeleteMemo(@Param("childId") Long childId, @Param("memoId") Long memoId,
+                        @Param("deleteId") java.util.UUID deleteId);
 }
