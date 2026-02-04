@@ -11,6 +11,7 @@
         <result property="likeCount" column="like_count"/>
         <result property="commentCount" column="comment_count"/>
         <result property="fixYn" column="fix_yn"/>
+        <result property="liked" column="liked"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regUserName" column="reg_user_name"/>
         <result property="regDate" column="reg_date"/>
@@ -70,6 +71,10 @@
             i.reg_id,
             m.name AS reg_user_name,
             i.reg_date,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM board_item_like bil
+                WHERE bil.bi_seq = i.bi_seq AND bil.mb_id = #{memberId}::uuid
+            ) THEN true ELSE false END AS liked,
             CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
         <include refid="FromboardItem"/>
         <include refid="wherePostcode"/>
@@ -152,6 +157,10 @@
             i.reg_id,
             m.name AS reg_user_name,
             i.reg_date,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM board_item_like bil
+                WHERE bil.bi_seq = i.bi_seq AND bil.mb_id = #{memberId}::uuid
+            ) THEN true ELSE false END AS liked,
             CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
         FROM board_item i
         JOIN member m ON i.reg_id = m.id
@@ -178,6 +187,10 @@
             i.reg_id,
             m.name AS reg_user_name,
             i.reg_date,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM board_item_like bil
+                WHERE bil.bi_seq = i.bi_seq AND bil.mb_id = #{memberId}::uuid
+            ) THEN true ELSE false END AS liked,
             CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
         FROM board_item i
         JOIN member m ON i.reg_id = m.id

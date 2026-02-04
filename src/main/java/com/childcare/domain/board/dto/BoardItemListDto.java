@@ -21,6 +21,7 @@ public class BoardItemListDto {
     private Integer likeCount;
     private Integer commentCount;
     private String fixYn;
+    private boolean liked;
 
     // 작성자 정보
     private UUID regId;

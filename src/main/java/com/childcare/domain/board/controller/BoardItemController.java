@@ -198,6 +198,23 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 공감 (slug 기반)
+     * POST /boards/{slug}/items/{itemId}/like
+     */
+    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    public ResponseEntity<ApiResponse<Integer>> likeItemBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<Integer> response = boardItemService.likeItemBySlug(memberId, normalizedSlug, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 공감 취소
      * DELETE /boards/{boardId}/items/{itemId}/like
      */
@@ -209,6 +226,23 @@ public class BoardItemController {
         log.info("Unlike item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
         ApiResponse<Integer> response = boardItemService.unlikeItem(memberId, boardId, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 게시글 공감 취소 (slug 기반)
+     * DELETE /boards/{slug}/items/{itemId}/like
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    public ResponseEntity<ApiResponse<Integer>> unlikeItemBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<Integer> response = boardItemService.unlikeItemBySlug(memberId, normalizedSlug, itemId);
         return ResponseEntity.ok(response);
     }
 

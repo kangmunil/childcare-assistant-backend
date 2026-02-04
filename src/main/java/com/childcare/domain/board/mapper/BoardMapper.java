@@ -16,6 +16,7 @@ public interface BoardMapper {
             @Param("boardId") Long boardId,
             @Param("postcode") Integer postcode,
             @Param("category") String category,
+            @Param("memberId") UUID memberId,
             @Param("searchType") String searchType,
             @Param("keyword") String keyword,
             @Param("offset") int offset,
@@ -40,12 +41,14 @@ public interface BoardMapper {
     // 고정글 조회
     List<BoardItemListDto> getFixedItems(
             @Param("boardId") Long boardId,
-            @Param("category") String category
+            @Param("category") String category,
+            @Param("memberId") UUID memberId
     );
 
     // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
     List<BoardItemListDto> getPopularItems(
             @Param("boardId") Long boardId,
-            @Param("category") String category
+            @Param("category") String category,
+            @Param("memberId") UUID memberId
     );
 }

@@ -181,27 +181,17 @@ public class BoardItemService {
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        return likeItemInternal(memberId, boardId, itemId);
+    }
 
-        // 이미 공감했는지 확인
-        if (boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId)) {
-            throw new BoardException(BoardErrorCode.ALREADY_LIKED);
-        }
-
-        // 공감 저장
-        BoardItemLike like = BoardItemLike.builder()
-                .biSeq(itemId)
-                .mbId(memberId)
-                .regDate(LocalDateTime.now())
-                .build();
-        boardItemLikeRepository.save(like);
-
-        // 공감수 증가
-        int newLikeCount = (item.getLikeCount() == null ? 0 : item.getLikeCount()) + 1;
-        item.setLikeCount(newLikeCount);
-        boardItemRepository.save(item);
-
-        return ApiResponse.success("공감 성공", newLikeCount);
+    /**
+     * 게시글 공감 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> likeItemBySlug(UUID memberId, String slug, Long itemId) {
+        log.info("Like item: {} for board slug: {}, member: {}", itemId, slug, memberId);
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return likeItemInternal(memberId, board.getBoSeq(), itemId);
     }
 
     /**
@@ -213,21 +203,17 @@ public class BoardItemService {
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        return unlikeItemInternal(memberId, boardId, itemId);
+    }
 
-        // 공감했는지 확인
-        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbId(itemId, memberId)
-                .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
-
-        // 공감 삭제
-        boardItemLikeRepository.delete(like);
-
-        // 공감수 감소
-        int newLikeCount = Math.max(0, (item.getLikeCount() == null ? 0 : item.getLikeCount()) - 1);
-        item.setLikeCount(newLikeCount);
-        boardItemRepository.save(item);
-
-        return ApiResponse.success("공감 취소 성공", newLikeCount);
+    /**
+     * 게시글 공감 취소 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> unlikeItemBySlug(UUID memberId, String slug, Long itemId) {
+        log.info("Unlike item: {} for board slug: {}, member: {}", itemId, slug, memberId);
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return unlikeItemInternal(memberId, board.getBoSeq(), itemId);
     }
 
     // ========== Private Methods ==========
@@ -391,6 +377,54 @@ public class BoardItemService {
         }
     }
 
+    private ApiResponse<Integer> likeItemInternal(UUID memberId, Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+
+        // 이미 공감했는지 확인
+        if (boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId)) {
+            throw new BoardException(BoardErrorCode.ALREADY_LIKED);
+        }
+
+        // 공감 저장
+        BoardItemLike like = BoardItemLike.builder()
+                .biSeq(itemId)
+                .mbId(memberId)
+                .regDate(LocalDateTime.now())
+                .build();
+        boardItemLikeRepository.save(like);
+
+        // 공감수 증가
+        int newLikeCount = (item.getLikeCount() == null ? 0 : item.getLikeCount()) + 1;
+        item.setLikeCount(newLikeCount);
+        boardItemRepository.save(item);
+
+        return ApiResponse.success("공감 성공", newLikeCount);
+    }
+
+    private ApiResponse<Integer> unlikeItemInternal(UUID memberId, Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+
+        // 공감했는지 확인
+        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbId(itemId, memberId)
+                .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
+
+        // 공감 삭제
+        boardItemLikeRepository.delete(like);
+
+        // 공감수 감소
+        int newLikeCount = Math.max(0, (item.getLikeCount() == null ? 0 : item.getLikeCount()) - 1);
+        item.setLikeCount(newLikeCount);
+        boardItemRepository.save(item);
+
+        return ApiResponse.success("공감 취소 성공", newLikeCount);
+    }
+
     private ApiResponse<BoardItemDto> getItemInternal(UUID memberId, Board board, Long itemId) {
         BoardItem item = validateItem(itemId);
 
@@ -439,18 +473,18 @@ public class BoardItemService {
         Long boardId = board.getBoSeq();
 
         // 고정글 조회
-        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category);
+        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category, memberId);
         Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
 
         // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category);
+        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category, memberId);
         popularDtos = popularDtos.stream()
                 .filter(item -> !fixedIds.contains(item.getId()))
                 .peek(item -> item.setPopular(true))
                 .collect(Collectors.toList());
 
         // 일반글 조회
-        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category);
+        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category, memberId);
         @SuppressWarnings("unchecked")
         List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
 
@@ -466,7 +500,7 @@ public class BoardItemService {
         return ApiResponse.success("게시글 목록 조회 성공", result);
     }
 
-    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest, String category) {
+    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest, String category, UUID memberId) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
         int page = searchRequest.getPage();
@@ -479,7 +513,7 @@ public class BoardItemService {
         }
 
         // Mapper로 검색
-        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, searchType, keyword, offset, size);
+        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, memberId, searchType, keyword, offset, size);
         int totalCount = boardMapper.countSearchItems(boardId, userPostcode, category, searchType, keyword);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 
