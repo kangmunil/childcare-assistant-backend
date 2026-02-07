@@ -46,7 +46,8 @@ public class BoardItemService {
     /**
      * 게시글 목록 조회 (slug 기반)
      */
-    public ApiResponse<Map<String, Object>> getItemListBySlug(UUID memberId, String slug, BoardSearchRequest searchRequest) {
+    public ApiResponse<Map<String, Object>> getItemListBySlug(UUID memberId, String slug,
+            BoardSearchRequest searchRequest) {
         Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
         return getItemListInternal(memberId, board, searchRequest);
     }
@@ -104,8 +105,26 @@ public class BoardItemService {
     public ApiResponse<BoardItemDto> updateItem(UUID memberId, Long boardId, Long itemId, BoardItemRequest request) {
         log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        // 게시판 및 게시글 조회
+        // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return updateItemInternal(memberId, board, itemId, request);
+    }
+
+    /**
+     * 게시글 수정 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> updateItemBySlug(UUID memberId, String slug, Long itemId,
+            BoardItemRequest request) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Update item: {} for board slug: {}, member: {}", itemId, normalizedSlug, memberId);
+
+        return updateItemInternal(memberId, board, itemId, request);
+    }
+
+    private ApiResponse<BoardItemDto> updateItemInternal(UUID memberId, Board board, Long itemId,
+            BoardItemRequest request) {
         BoardItem item = validateItem(itemId);
 
         // 수정 권한 검증
@@ -139,9 +158,7 @@ public class BoardItemService {
         long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
         boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
 
-        BoardItemDto dto = toDto(savedItem, files, (int) commentCount, liked, memberId);
-
-        return ApiResponse.success("게시글 수정 성공", dto);
+        return ApiResponse.success("게시글 수정 성공", toDto(savedItem, files, (int) commentCount, liked, memberId));
     }
 
     /**
@@ -151,8 +168,24 @@ public class BoardItemService {
     public ApiResponse<Void> deleteItem(UUID memberId, Long boardId, Long itemId) {
         log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        // 게시판 및 게시글 조회
+        // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return deleteItemInternal(memberId, board, itemId);
+    }
+
+    /**
+     * 게시글 삭제 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Void> deleteItemBySlug(UUID memberId, String slug, Long itemId) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Delete item: {} for board slug: {}, member: {}", itemId, normalizedSlug, memberId);
+
+        return deleteItemInternal(memberId, board, itemId);
+    }
+
+    private ApiResponse<Void> deleteItemInternal(UUID memberId, Board board, Long itemId) {
         BoardItem item = validateItem(itemId);
 
         // 삭제 권한 검증
@@ -458,7 +491,8 @@ public class BoardItemService {
         return ApiResponse.success("게시글 조회 성공", dto);
     }
 
-    private ApiResponse<Map<String, Object>> getItemListInternal(UUID memberId, Board board, BoardSearchRequest searchRequest) {
+    private ApiResponse<Map<String, Object>> getItemListInternal(UUID memberId, Board board,
+            BoardSearchRequest searchRequest) {
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
@@ -500,7 +534,8 @@ public class BoardItemService {
         return ApiResponse.success("게시글 목록 조회 성공", result);
     }
 
-    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest, String category, UUID memberId) {
+    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest,
+            String category, UUID memberId) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
         int page = searchRequest.getPage();
@@ -513,7 +548,8 @@ public class BoardItemService {
         }
 
         // Mapper로 검색
-        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, memberId, searchType, keyword, offset, size);
+        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, memberId, searchType,
+                keyword, offset, size);
         int totalCount = boardMapper.countSearchItems(boardId, userPostcode, category, searchType, keyword);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 

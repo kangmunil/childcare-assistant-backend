@@ -14,6 +14,7 @@
         <result property="liked" column="liked"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regUserName" column="reg_user_name"/>
+        <result property="regUserRegionName" column="reg_user_region_name"/>
         <result property="regDate" column="reg_date"/>
         <result property="hasFile" column="has_file"/>
     </resultMap>
@@ -70,6 +71,7 @@
             i.fix_yn,
             i.reg_id,
             m.name AS reg_user_name,
+            m.region_name AS reg_user_region_name,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -156,6 +158,7 @@
             i.fix_yn,
             i.reg_id,
             m.name AS reg_user_name,
+            m.region_name AS reg_user_region_name,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -186,6 +189,7 @@
             i.fix_yn,
             i.reg_id,
             m.name AS reg_user_name,
+            m.region_name AS reg_user_region_name,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
