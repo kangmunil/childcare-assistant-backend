@@ -46,7 +46,8 @@ public class BoardItemService {
     /**
      * 게시글 목록 조회 (slug 기반)
      */
-    public ApiResponse<Map<String, Object>> getItemListBySlug(UUID memberId, String slug, BoardSearchRequest searchRequest) {
+    public ApiResponse<Map<String, Object>> getItemListBySlug(UUID memberId, String slug,
+            BoardSearchRequest searchRequest) {
         Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
         return getItemListInternal(memberId, board, searchRequest);
     }
@@ -104,8 +105,26 @@ public class BoardItemService {
     public ApiResponse<BoardItemDto> updateItem(UUID memberId, Long boardId, Long itemId, BoardItemRequest request) {
         log.info("Update item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        // 게시판 및 게시글 조회
+        // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return updateItemInternal(memberId, board, itemId, request);
+    }
+
+    /**
+     * 게시글 수정 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> updateItemBySlug(UUID memberId, String slug, Long itemId,
+            BoardItemRequest request) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Update item: {} for board slug: {}, member: {}", itemId, normalizedSlug, memberId);
+
+        return updateItemInternal(memberId, board, itemId, request);
+    }
+
+    private ApiResponse<BoardItemDto> updateItemInternal(UUID memberId, Board board, Long itemId,
+            BoardItemRequest request) {
         BoardItem item = validateItem(itemId);
 
         // 수정 권한 검증
@@ -139,9 +158,7 @@ public class BoardItemService {
         long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
         boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
 
-        BoardItemDto dto = toDto(savedItem, files, (int) commentCount, liked, memberId);
-
-        return ApiResponse.success("게시글 수정 성공", dto);
+        return ApiResponse.success("게시글 수정 성공", toDto(savedItem, files, (int) commentCount, liked, memberId));
     }
 
     /**
@@ -151,8 +168,24 @@ public class BoardItemService {
     public ApiResponse<Void> deleteItem(UUID memberId, Long boardId, Long itemId) {
         log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
-        // 게시판 및 게시글 조회
+        // 게시판 조회 및 검증
         Board board = validateBoard(boardId);
+        return deleteItemInternal(memberId, board, itemId);
+    }
+
+    /**
+     * 게시글 삭제 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Void> deleteItemBySlug(UUID memberId, String slug, Long itemId) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        log.info("Delete item: {} for board slug: {}, member: {}", itemId, normalizedSlug, memberId);
+
+        return deleteItemInternal(memberId, board, itemId);
+    }
+
+    private ApiResponse<Void> deleteItemInternal(UUID memberId, Board board, Long itemId) {
         BoardItem item = validateItem(itemId);
 
         // 삭제 권한 검증
@@ -181,27 +214,17 @@ public class BoardItemService {
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        return likeItemInternal(memberId, boardId, itemId);
+    }
 
-        // 이미 공감했는지 확인
-        if (boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId)) {
-            throw new BoardException(BoardErrorCode.ALREADY_LIKED);
-        }
-
-        // 공감 저장
-        BoardItemLike like = BoardItemLike.builder()
-                .biSeq(itemId)
-                .mbId(memberId)
-                .regDate(LocalDateTime.now())
-                .build();
-        boardItemLikeRepository.save(like);
-
-        // 공감수 증가
-        int newLikeCount = (item.getLikeCount() == null ? 0 : item.getLikeCount()) + 1;
-        item.setLikeCount(newLikeCount);
-        boardItemRepository.save(item);
-
-        return ApiResponse.success("공감 성공", newLikeCount);
+    /**
+     * 게시글 공감 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> likeItemBySlug(UUID memberId, String slug, Long itemId) {
+        log.info("Like item: {} for board slug: {}, member: {}", itemId, slug, memberId);
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return likeItemInternal(memberId, board.getBoSeq(), itemId);
     }
 
     /**
@@ -213,21 +236,17 @@ public class BoardItemService {
 
         // 게시판 및 게시글 조회
         validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        return unlikeItemInternal(memberId, boardId, itemId);
+    }
 
-        // 공감했는지 확인
-        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbId(itemId, memberId)
-                .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
-
-        // 공감 삭제
-        boardItemLikeRepository.delete(like);
-
-        // 공감수 감소
-        int newLikeCount = Math.max(0, (item.getLikeCount() == null ? 0 : item.getLikeCount()) - 1);
-        item.setLikeCount(newLikeCount);
-        boardItemRepository.save(item);
-
-        return ApiResponse.success("공감 취소 성공", newLikeCount);
+    /**
+     * 게시글 공감 취소 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> unlikeItemBySlug(UUID memberId, String slug, Long itemId) {
+        log.info("Unlike item: {} for board slug: {}, member: {}", itemId, slug, memberId);
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return unlikeItemInternal(memberId, board.getBoSeq(), itemId);
     }
 
     // ========== Private Methods ==========
@@ -391,6 +410,54 @@ public class BoardItemService {
         }
     }
 
+    private ApiResponse<Integer> likeItemInternal(UUID memberId, Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+
+        // 이미 공감했는지 확인
+        if (boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId)) {
+            throw new BoardException(BoardErrorCode.ALREADY_LIKED);
+        }
+
+        // 공감 저장
+        BoardItemLike like = BoardItemLike.builder()
+                .biSeq(itemId)
+                .mbId(memberId)
+                .regDate(LocalDateTime.now())
+                .build();
+        boardItemLikeRepository.save(like);
+
+        // 공감수 증가
+        int newLikeCount = (item.getLikeCount() == null ? 0 : item.getLikeCount()) + 1;
+        item.setLikeCount(newLikeCount);
+        boardItemRepository.save(item);
+
+        return ApiResponse.success("공감 성공", newLikeCount);
+    }
+
+    private ApiResponse<Integer> unlikeItemInternal(UUID memberId, Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+
+        // 공감했는지 확인
+        BoardItemLike like = boardItemLikeRepository.findByBiSeqAndMbId(itemId, memberId)
+                .orElseThrow(() -> new BoardException(BoardErrorCode.NOT_LIKED));
+
+        // 공감 삭제
+        boardItemLikeRepository.delete(like);
+
+        // 공감수 감소
+        int newLikeCount = Math.max(0, (item.getLikeCount() == null ? 0 : item.getLikeCount()) - 1);
+        item.setLikeCount(newLikeCount);
+        boardItemRepository.save(item);
+
+        return ApiResponse.success("공감 취소 성공", newLikeCount);
+    }
+
     private ApiResponse<BoardItemDto> getItemInternal(UUID memberId, Board board, Long itemId) {
         BoardItem item = validateItem(itemId);
 
@@ -424,7 +491,8 @@ public class BoardItemService {
         return ApiResponse.success("게시글 조회 성공", dto);
     }
 
-    private ApiResponse<Map<String, Object>> getItemListInternal(UUID memberId, Board board, BoardSearchRequest searchRequest) {
+    private ApiResponse<Map<String, Object>> getItemListInternal(UUID memberId, Board board,
+            BoardSearchRequest searchRequest) {
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
@@ -439,18 +507,18 @@ public class BoardItemService {
         Long boardId = board.getBoSeq();
 
         // 고정글 조회
-        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category);
+        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category, memberId);
         Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
 
         // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category);
+        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category, memberId);
         popularDtos = popularDtos.stream()
                 .filter(item -> !fixedIds.contains(item.getId()))
                 .peek(item -> item.setPopular(true))
                 .collect(Collectors.toList());
 
         // 일반글 조회
-        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category);
+        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category, memberId);
         @SuppressWarnings("unchecked")
         List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
 
@@ -466,7 +534,8 @@ public class BoardItemService {
         return ApiResponse.success("게시글 목록 조회 성공", result);
     }
 
-    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest, String category) {
+    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest,
+            String category, UUID memberId) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
         int page = searchRequest.getPage();
@@ -479,7 +548,8 @@ public class BoardItemService {
         }
 
         // Mapper로 검색
-        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, searchType, keyword, offset, size);
+        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, memberId, searchType,
+                keyword, offset, size);
         int totalCount = boardMapper.countSearchItems(boardId, userPostcode, category, searchType, keyword);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 

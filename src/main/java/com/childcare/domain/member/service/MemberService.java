@@ -53,16 +53,17 @@ public class MemberService {
                 .orElseThrow(() -> new AuthException(AuthErrorCode.MEMBER_NOT_FOUND));
 
         /*
-        // 이메일 중복 검사 (다른 회원과 중복되는지)
+         * // 이메일 중복 검사 (다른 회원과 중복되는지)
+         * if (request.getEmail() != null &&
+         * !request.getEmail().equals(member.getEmail())) {
+         * if (memberRepository.existsByEmail(request.getEmail())) {
+         * throw new AuthException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+         * }
+         * member.setEmail(request.getEmail());
+         * }
+         */
+        // 이메일 변경 불가 (이메일이 request에 포함된 경우에만 검증)
         if (request.getEmail() != null && !request.getEmail().equals(member.getEmail())) {
-            if (memberRepository.existsByEmail(request.getEmail())) {
-                throw new AuthException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
-            }
-            member.setEmail(request.getEmail());
-        }
-        */
-        //이메일 변경 불가
-        if(!request.getEmail().equals(member.getEmail())) {
             throw new AuthException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
@@ -83,6 +84,9 @@ public class MemberService {
         }
         if (request.getAddr2() != null) {
             member.setAddr2(request.getAddr2());
+        }
+        if (request.getRegionName() != null) {
+            member.setRegionName(request.getRegionName());
         }
 
         Member updatedMember = memberRepository.save(member);
@@ -148,6 +152,7 @@ public class MemberService {
                 .addr2(member.getAddr2())
                 .inviteCode(member.getInviteCode())
                 .profileImageUrl(member.getProfileImageUrl())
+                .regionName(member.getRegionName())
                 .build();
     }
 }

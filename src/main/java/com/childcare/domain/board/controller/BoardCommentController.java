@@ -7,25 +7,32 @@ import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/boards/{boardId}/items/{itemId}/comments")
+@RequestMapping("/boards")
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class BoardCommentController {
 
     private final BoardCommentService boardCommentService;
+    private static final java.util.Set<String> RESERVED_SLUGS = java.util.Set.of(
+            "new", "edit", "admin", "delete", "api", "manage", "search"
+    );
 
     /**
      * 댓글 목록 조회
      * GET /boards/{boardId}/items/{itemId}/comments
      */
-    @GetMapping
+    @GetMapping("/{boardId:\\d+}/items/{itemId}/comments")
     public ResponseEntity<ApiResponse<List<BoardCommentDto>>> getComments(
             @PathVariable Long boardId,
             @PathVariable Long itemId) {
@@ -37,10 +44,28 @@ public class BoardCommentController {
     }
 
     /**
+     * 댓글 목록 조회 (slug 기반)
+     * GET /boards/{slug}/items/{itemId}/comments
+     */
+    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments")
+    public ResponseEntity<ApiResponse<List<BoardCommentDto>>> getCommentsBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<List<BoardCommentDto>> response = boardCommentService.getCommentsBySlug(memberId, normalizedSlug, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 댓글 작성
      * POST /boards/{boardId}/items/{itemId}/comments
      */
-    @PostMapping
+    @PostMapping("/{boardId:\\d+}/items/{itemId}/comments")
     public ResponseEntity<ApiResponse<BoardCommentDto>> createComment(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -53,10 +78,29 @@ public class BoardCommentController {
     }
 
     /**
+     * 댓글 작성 (slug 기반)
+     * POST /boards/{slug}/items/{itemId}/comments
+     */
+    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments")
+    public ResponseEntity<ApiResponse<BoardCommentDto>> createCommentBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId,
+            @RequestBody BoardCommentRequest request) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<BoardCommentDto> response = boardCommentService.createCommentBySlug(memberId, normalizedSlug, itemId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 댓글 수정
      * PUT /boards/{boardId}/items/{itemId}/comments/{commentId}
      */
-    @PutMapping("/{commentId}")
+    @PutMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}")
     public ResponseEntity<ApiResponse<BoardCommentDto>> updateComment(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -70,10 +114,30 @@ public class BoardCommentController {
     }
 
     /**
+     * 댓글 수정 (slug 기반)
+     * PUT /boards/{slug}/items/{itemId}/comments/{commentId}
+     */
+    @PutMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
+    public ResponseEntity<ApiResponse<BoardCommentDto>> updateCommentBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId,
+            @RequestBody BoardCommentRequest request) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<BoardCommentDto> response = boardCommentService.updateCommentBySlug(memberId, normalizedSlug, itemId, commentId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 댓글 삭제
      * DELETE /boards/{boardId}/items/{itemId}/comments/{commentId}
      */
-    @DeleteMapping("/{commentId}")
+    @DeleteMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}")
     public ResponseEntity<ApiResponse<Void>> deleteComment(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -86,10 +150,29 @@ public class BoardCommentController {
     }
 
     /**
+     * 댓글 삭제 (slug 기반)
+     * DELETE /boards/{slug}/items/{itemId}/comments/{commentId}
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteCommentBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<Void> response = boardCommentService.deleteCommentBySlug(memberId, normalizedSlug, itemId, commentId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 댓글 공감
      * POST /boards/{boardId}/items/{itemId}/comments/{commentId}/like
      */
-    @PostMapping("/{commentId}/like")
+    @PostMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}/like")
     public ResponseEntity<ApiResponse<Integer>> likeComment(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -102,10 +185,29 @@ public class BoardCommentController {
     }
 
     /**
+     * 댓글 공감 (slug 기반)
+     * POST /boards/{slug}/items/{itemId}/comments/{commentId}/like
+     */
+    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
+    public ResponseEntity<ApiResponse<Integer>> likeCommentBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<Integer> response = boardCommentService.likeCommentBySlug(memberId, normalizedSlug, itemId, commentId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 댓글 공감 취소
      * DELETE /boards/{boardId}/items/{itemId}/comments/{commentId}/like
      */
-    @DeleteMapping("/{commentId}/like")
+    @DeleteMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}/like")
     public ResponseEntity<ApiResponse<Integer>> unlikeComment(
             @PathVariable Long boardId,
             @PathVariable Long itemId,
@@ -117,7 +219,36 @@ public class BoardCommentController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 댓글 공감 취소 (slug 기반)
+     * DELETE /boards/{slug}/items/{itemId}/comments/{commentId}/like
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
+    public ResponseEntity<ApiResponse<Integer>> unlikeCommentBySlug(
+            @PathVariable
+            @Pattern(regexp = "^[a-z0-9-]+$")
+            @Size(min = 2, max = 50)
+            String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<Integer> response = boardCommentService.unlikeCommentBySlug(memberId, normalizedSlug, itemId, commentId);
+        return ResponseEntity.ok(response);
+    }
+
     private UUID getMemberId() {
         return SecurityUtil.getCurrentMemberId();
+    }
+
+    private String normalizeSlug(String slug) {
+        String normalized = slug.toLowerCase();
+        if (RESERVED_SLUGS.contains(normalized)) {
+            throw new com.childcare.global.exception.BoardException(
+                    com.childcare.global.exception.BoardException.BoardErrorCode.BOARD_SLUG_RESERVED
+            );
+        }
+        return normalized;
     }
 }

@@ -26,8 +26,7 @@ public class BoardItemController {
 
     private final BoardItemService boardItemService;
     private static final java.util.Set<String> RESERVED_SLUGS = java.util.Set.of(
-            "new", "edit", "admin", "delete", "api", "manage", "search"
-    );
+            "new", "edit", "admin", "delete", "api", "manage", "search");
 
     /**
      * 게시글 목록 조회
@@ -62,10 +61,7 @@ public class BoardItemController {
      */
     @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getItemListBySlug(
-            @PathVariable
-            @Pattern(regexp = "^[a-z0-9-]+$")
-            @Size(min = 2, max = 50)
-            String slug,
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
@@ -82,7 +78,8 @@ public class BoardItemController {
                 .size(size)
                 .build();
 
-        ApiResponse<Map<String, Object>> response = boardItemService.getItemListBySlug(memberId, normalizedSlug, searchRequest);
+        ApiResponse<Map<String, Object>> response = boardItemService.getItemListBySlug(memberId, normalizedSlug,
+                searchRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -107,10 +104,7 @@ public class BoardItemController {
      */
     @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
     public ResponseEntity<ApiResponse<BoardItemDto>> getItemBySlug(
-            @PathVariable
-            @Pattern(regexp = "^[a-z0-9-]+$")
-            @Size(min = 2, max = 50)
-            String slug,
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId) {
         UUID memberId = getMemberId();
         String normalizedSlug = normalizeSlug(slug);
@@ -139,10 +133,7 @@ public class BoardItemController {
      */
     @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
     public ResponseEntity<ApiResponse<BoardItemDto>> createItemBySlug(
-            @PathVariable
-            @Pattern(regexp = "^[a-z0-9-]+$")
-            @Size(min = 2, max = 50)
-            String slug,
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @RequestBody BoardItemRequest request) {
         String normalizedSlug = normalizeSlug(slug);
 
@@ -168,6 +159,23 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 수정 (slug 기반)
+     * PUT /boards/{slug}/items/{itemId}
+     */
+    @PutMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    public ResponseEntity<ApiResponse<BoardItemDto>> updateItemBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId,
+            @RequestBody BoardItemRequest request) {
+        String normalizedSlug = normalizeSlug(slug);
+        UUID memberId = getMemberId();
+
+        ApiResponse<BoardItemDto> response = boardItemService.updateItemBySlug(memberId, normalizedSlug, itemId,
+                request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 삭제
      * DELETE /boards/{boardId}/items/{itemId}
      */
@@ -179,6 +187,21 @@ public class BoardItemController {
         log.info("Delete item: {} for board: {}, member: {}", itemId, boardId, memberId);
 
         ApiResponse<Void> response = boardItemService.deleteItem(memberId, boardId, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 게시글 삭제 (slug 기반)
+     * DELETE /boards/{slug}/items/{itemId}
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    public ResponseEntity<ApiResponse<Void>> deleteItemBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+
+        ApiResponse<Void> response = boardItemService.deleteItemBySlug(memberId, normalizedSlug, itemId);
         return ResponseEntity.ok(response);
     }
 
@@ -198,6 +221,20 @@ public class BoardItemController {
     }
 
     /**
+     * 게시글 공감 (slug 기반)
+     * POST /boards/{slug}/items/{itemId}/like
+     */
+    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    public ResponseEntity<ApiResponse<Integer>> likeItemBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<Integer> response = boardItemService.likeItemBySlug(memberId, normalizedSlug, itemId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 게시글 공감 취소
      * DELETE /boards/{boardId}/items/{itemId}/like
      */
@@ -212,6 +249,20 @@ public class BoardItemController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 게시글 공감 취소 (slug 기반)
+     * DELETE /boards/{slug}/items/{itemId}/like
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    public ResponseEntity<ApiResponse<Integer>> unlikeItemBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<Integer> response = boardItemService.unlikeItemBySlug(memberId, normalizedSlug, itemId);
+        return ResponseEntity.ok(response);
+    }
+
     private UUID getMemberId() {
         return SecurityUtil.getCurrentMemberId();
     }
@@ -220,8 +271,7 @@ public class BoardItemController {
         String normalized = slug.toLowerCase();
         if (RESERVED_SLUGS.contains(normalized)) {
             throw new com.childcare.global.exception.BoardException(
-                    com.childcare.global.exception.BoardException.BoardErrorCode.BOARD_SLUG_RESERVED
-            );
+                    com.childcare.global.exception.BoardException.BoardErrorCode.BOARD_SLUG_RESERVED);
         }
         return normalized;
     }

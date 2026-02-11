@@ -20,4 +20,6 @@ public class MemberUpdateRequest {
     private String addr1;
 
     private String addr2;
+
+    private String regionName;
 }

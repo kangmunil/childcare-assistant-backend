@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,9 +43,8 @@ public class BoardCommentService {
     public ApiResponse<List<BoardCommentDto>> getComments(UUID memberId, Long boardId, Long itemId) {
         log.info("Get comments for item: {}, member: {}", itemId, memberId);
 
-        // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 읽기 권한 검증
         Member member = getMember(memberId);
@@ -53,24 +53,20 @@ public class BoardCommentService {
         // MyBatis로 댓글 목록 조회 (작성자명, 공감여부 포함)
         List<BoardCommentListDto> comments = boardMapper.getComments(itemId, memberId);
 
-        // 부모 댓글과 대댓글 그룹핑
-        Map<Long, List<BoardCommentListDto>> repliesMap = comments.stream()
-                .filter(c -> c.getParentSeq() != null)
-                .collect(Collectors.groupingBy(BoardCommentListDto::getParentSeq));
-
-        // 부모 댓글만 추출하여 DTO 변환 (대댓글은 replies에 포함)
+        // 플랫 리스트로 반환 (프론트에서 그룹핑)
         List<BoardCommentDto> result = comments.stream()
-                .filter(c -> c.getParentSeq() == null)
-                .map(parent -> {
-                    List<BoardCommentDto> replies = repliesMap.getOrDefault(parent.getId(), Collections.emptyList())
-                            .stream()
-                            .map(reply -> toDto(reply, memberId, item.getRegId()))
-                            .collect(Collectors.toList());
-                    return toDto(parent, memberId, item.getRegId(), replies);
-                })
+                .map(comment -> toDto(comment, memberId, item.getRegId()))
                 .collect(Collectors.toList());
 
         return ApiResponse.success("댓글 목록 조회 성공", result);
+    }
+
+    /**
+     * 댓글 목록 조회 (slug 기반)
+     */
+    public ApiResponse<List<BoardCommentDto>> getCommentsBySlug(UUID memberId, String slug, Long itemId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return getComments(memberId, board.getBoSeq(), itemId);
     }
 
     /**
@@ -82,7 +78,7 @@ public class BoardCommentService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 작성 권한 검증
         Member member = getMember(memberId);
@@ -146,6 +142,15 @@ public class BoardCommentService {
     }
 
     /**
+     * 댓글 작성 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardCommentDto> createCommentBySlug(UUID memberId, String slug, Long itemId, BoardCommentRequest request) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return createComment(memberId, board.getBoSeq(), itemId, request);
+    }
+
+    /**
      * 댓글 수정
      */
     @Transactional
@@ -154,7 +159,7 @@ public class BoardCommentService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
         BoardComment comment = validateComment(commentId);
 
         // 수정 권한 검증
@@ -188,6 +193,15 @@ public class BoardCommentService {
     }
 
     /**
+     * 댓글 수정 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardCommentDto> updateCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId, BoardCommentRequest request) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return updateComment(memberId, board.getBoSeq(), itemId, commentId, request);
+    }
+
+    /**
      * 댓글 삭제 (소프트 삭제)
      */
     @Transactional
@@ -196,7 +210,7 @@ public class BoardCommentService {
 
         // 게시판 및 댓글 조회
         Board board = validateBoard(boardId);
-        validateItem(itemId);
+        validateItemInBoard(boardId, itemId);
         BoardComment comment = validateComment(commentId);
 
         // 삭제 권한 검증
@@ -214,6 +228,15 @@ public class BoardCommentService {
     }
 
     /**
+     * 댓글 삭제 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Void> deleteCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return deleteComment(memberId, board.getBoSeq(), itemId, commentId);
+    }
+
+    /**
      * 댓글 공감
      */
     @Transactional
@@ -222,7 +245,7 @@ public class BoardCommentService {
 
         // 게시판 및 댓글 조회
         validateBoard(boardId);
-        validateItem(itemId);
+        validateItemInBoard(boardId, itemId);
         BoardComment comment = validateComment(commentId);
 
         // 이미 공감했는지 확인
@@ -247,6 +270,15 @@ public class BoardCommentService {
     }
 
     /**
+     * 댓글 공감 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> likeCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return likeComment(memberId, board.getBoSeq(), itemId, commentId);
+    }
+
+    /**
      * 댓글 공감 취소
      */
     @Transactional
@@ -255,7 +287,7 @@ public class BoardCommentService {
 
         // 게시판 및 댓글 조회
         validateBoard(boardId);
-        validateItem(itemId);
+        validateItemInBoard(boardId, itemId);
         BoardComment comment = validateComment(commentId);
 
         // 공감했는지 확인
@@ -273,10 +305,29 @@ public class BoardCommentService {
         return ApiResponse.success("공감 취소 성공", newLikeCount);
     }
 
+    /**
+     * 댓글 공감 취소 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Integer> unlikeCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return unlikeComment(memberId, board.getBoSeq(), itemId, commentId);
+    }
+
     // ========== Private Methods ==========
 
     private Board validateBoard(Long boardId) {
         Board board = boardRepository.findById(boardId)
+                .orElseThrow(() -> new BoardException(BoardErrorCode.BOARD_NOT_FOUND));
+
+        if (!"Y".equals(board.getBoUseYn())) {
+            throw new BoardException(BoardErrorCode.BOARD_NOT_AVAILABLE);
+        }
+        return board;
+    }
+
+    private Board validateBoardBySlug(String slug) {
+        Board board = boardRepository.findByBoSlug(slug)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.BOARD_NOT_FOUND));
 
         if (!"Y".equals(board.getBoUseYn())) {
@@ -291,6 +342,14 @@ public class BoardCommentService {
 
         if ("Y".equals(item.getDeleteYn())) {
             throw new BoardException(BoardErrorCode.ITEM_ALREADY_DELETED);
+        }
+        return item;
+    }
+
+    private BoardItem validateItemInBoard(Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
         }
         return item;
     }
