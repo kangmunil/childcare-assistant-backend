@@ -54,6 +54,30 @@ public class FamilyController {
     }
 
     /**
+     * 초대 승인
+     * PUT /children/{childId}/family/{memberId}/approve
+     */
+    @PutMapping("/{memberId}/approve")
+    public ApiResponse<FamilyMemberDto> approveInvitation(
+            @PathVariable Long childId,
+            @PathVariable UUID memberId) {
+        UUID myMemberId = SecurityUtil.getCurrentMemberId();
+        return familyService.approveInvitation(myMemberId, childId, memberId);
+    }
+
+    /**
+     * 초대 거절
+     * DELETE /children/{childId}/family/{memberId}/reject
+     */
+    @DeleteMapping("/{memberId}/reject")
+    public ApiResponse<Void> rejectInvitation(
+            @PathVariable Long childId,
+            @PathVariable UUID memberId) {
+        UUID myMemberId = SecurityUtil.getCurrentMemberId();
+        return familyService.rejectInvitation(myMemberId, childId, memberId);
+    }
+
+    /**
      * 관계명 수정 (아빠, 엄마, 할머니 등)
      * PUT /children/{childId}/family/{memberId}/relation
      */

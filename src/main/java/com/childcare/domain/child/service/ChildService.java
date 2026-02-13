@@ -9,6 +9,8 @@ import com.childcare.domain.child.entity.ChildImage;
 import com.childcare.domain.child.mapper.ChildMapper;
 import com.childcare.domain.child.repository.ChildImageRepository;
 import com.childcare.domain.child.repository.ChildRepository;
+import com.childcare.domain.member.entity.Member;
+import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
 import com.childcare.global.dto.ApiResponse;
@@ -35,6 +37,7 @@ public class ChildService {
     private final ChildRepository childRepository;
     private final ChildImageRepository childImageRepository;
     private final ParentRepository parentRepository;
+    private final MemberRepository memberRepository;
     private final ChildMapper childMapper;
     private final SupabaseStorageService storageService;
 
@@ -47,7 +50,7 @@ public class ChildService {
         List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
 
         List<ChildDto> childDtos = children.stream()
-                .map(this::toDto)
+                .map(child -> toDto(child, memberId))
                 .collect(Collectors.toList());
 
         return ApiResponse.success("자녀 목록 조회 성공", childDtos);
@@ -68,7 +71,7 @@ public class ChildService {
         Child child = childMapper.findActiveChildById(childId)
                 .orElseThrow(() -> new ChildException(ChildErrorCode.NOT_FOUND));
 
-        return ApiResponse.success("자녀 정보 조회 성공", toDto(child));
+        return ApiResponse.success("자녀 정보 조회 성공", toDto(child, memberId));
     }
 
     @Transactional
@@ -103,7 +106,7 @@ public class ChildService {
         Parent parent = Parent.builder()
                 .mbId(memberId)
                 .chSeq(savedChild.getChSeq())
-                .relation("family")
+                .relation("") //"family"
                 .authManage("1")
                 .authRead("1")
                 .authWrite("1")
@@ -114,7 +117,7 @@ public class ChildService {
 
         parentRepository.save(parent);
 
-        return ApiResponse.success("자녀 등록 성공", List.of(toDto(savedChild)));
+        return ApiResponse.success("자녀 등록 성공", List.of(toDto(savedChild, memberId)));
     }
 
     @Transactional
@@ -142,7 +145,7 @@ public class ChildService {
 
         Child updatedChild = childRepository.save(child);
 
-        return ApiResponse.success("자녀 정보 수정 성공", List.of(toDto(updatedChild)));
+        return ApiResponse.success("자녀 정보 수정 성공", List.of(toDto(updatedChild, memberId)));
     }
 
     @Transactional
@@ -252,7 +255,7 @@ public class ChildService {
         return ApiResponse.success("성장 통계 조회 성공", data);
     }
 
-    private ChildDto toDto(Child child) {
+    private ChildDto toDto(Child child, UUID currentMemberId) {
         String genderStr = "M".equals(child.getGender()) ? "male" : "female";
 
         // 업로드된 프로필 이미지가 있으면 서명된 URL, 없으면 빈 문자열
@@ -266,6 +269,13 @@ public class ChildService {
             }
         }
 
+        // 소유자(등록자) 정보
+        UUID ownerId = child.getRegId();
+        String ownerName = memberRepository.findById(ownerId)
+                .map(Member::getName)
+                .orElse(null);
+        boolean isOwner = ownerId.equals(currentMemberId);
+
         return ChildDto.builder()
                 .id(child.getChSeq())
                 .name(child.getName())
@@ -275,6 +285,8 @@ public class ChildService {
                 .height(child.getHeight())
                 .weight(child.getWeight())
                 .photoUrl(photoUrl)
+                .ownerName(ownerName)
+                .isOwner(isOwner)
                 .build();
     }
 }

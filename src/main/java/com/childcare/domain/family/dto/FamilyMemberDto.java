@@ -1,5 +1,6 @@
 package com.childcare.domain.family.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,5 +20,8 @@ public class FamilyMemberDto {
     private String authRead;
     private String authWrite;
     private String authDelete;
+    @JsonProperty("isMe")
     private boolean isMe;
+    @JsonProperty("isApproved")
+    private boolean isApproved;
 }
