@@ -18,4 +18,6 @@ public class ChildDto {
     private String height;
     private String weight;
     private String photoUrl;
+    private String ownerName;
+    private Boolean isOwner;
 }

@@ -40,12 +40,14 @@ public class FamilyService {
     public ApiResponse<List<FamilyMemberDto>> getFamilyMembers(UUID memberId, Long childId) {
         log.info("Fetching family members for child: {} by member: {}", childId, memberId);
 
-        // 접근 권한만 확인 (read/write/delete 권한은 상관없음)
-        childAccessValidator.validateAccess(memberId, childId);
+        // 읽기 권한 확인
+        childAccessValidator.validateReadAccess(memberId, childId);
 
         List<Parent> parents = parentRepository.findByChSeq(childId);
 
+        // auth_read가 1인 가족만 조회
         List<FamilyMemberDto> familyMembers = parents.stream()
+                //.filter(parent -> "1".equals(parent.getAuthRead()))
                 .map(parent -> {
                     Member member = memberRepository.findById(parent.getMbId()).orElse(null);
                     return FamilyMemberDto.builder()
@@ -57,6 +59,7 @@ public class FamilyService {
                             .authWrite(parent.getAuthWrite())
                             .authDelete(parent.getAuthDelete())
                             .isMe(parent.getMbId().equals(memberId))
+                            .isApproved("1".equals(parent.getAuthRead()))
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -121,11 +124,11 @@ public class FamilyService {
         Parent newParent = Parent.builder()
                 .mbId(targetMember.getId())
                 .chSeq(childId)
-                .relation(request.getRelation() != null ? request.getRelation() : "family")
+                .relation(request.getRelation() != null ? request.getRelation() : "")
                 .authManage("0")
-                .authRead("1")
-                .authWrite("1")
-                .authDelete("1")
+                .authRead("0")
+                .authWrite("0")
+                .authDelete("0")
                 .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
@@ -141,9 +144,66 @@ public class FamilyService {
                 .authWrite(savedParent.getAuthWrite())
                 .authDelete(savedParent.getAuthDelete())
                 .isMe(false)
+                .isApproved("1".equals(savedParent.getAuthRead()))
                 .build();
 
         return ApiResponse.success("가족 공유 추가 성공", result);
+    }
+
+    /**
+     * 초대 승인 (auth_manage 권한 필요)
+     * authRead=1, authWrite=1로 변경 (authManage, authDelete는 항상 0)
+     */
+    @Transactional
+    public ApiResponse<FamilyMemberDto> approveInvitation(UUID memberId, Long childId, UUID targetMemberId) {
+        log.info("Approving invitation for member {} in child {} by member {}", targetMemberId, childId, memberId);
+
+        // 관리 권한 확인
+        childAccessValidator.validateManageAccess(memberId, childId);
+
+        // 대상 회원의 parent 관계 조회
+        Parent targetParent = parentRepository.findByMbIdAndChSeq(targetMemberId, childId)
+                .orElseThrow(() -> new ChildAccessDeniedException(AccessErrorCode.NO_ACCESS));
+
+        // 권한 승인
+        targetParent.setAuthRead("1");
+        targetParent.setAuthWrite("1");
+        Parent savedParent = parentRepository.save(targetParent);
+
+        Member member = memberRepository.findById(targetMemberId).orElse(null);
+
+        FamilyMemberDto result = FamilyMemberDto.builder()
+                .memberId(savedParent.getMbId())
+                .memberName(member != null ? member.getName() : "Unknown")
+                .relation(savedParent.getRelation())
+                .authManage(savedParent.getAuthManage())
+                .authRead(savedParent.getAuthRead())
+                .authWrite(savedParent.getAuthWrite())
+                .authDelete(savedParent.getAuthDelete())
+                .isMe(false)
+                .isApproved("1".equals(savedParent.getAuthRead()))
+                .build();
+
+        return ApiResponse.success("초대 승인 성공", result);
+    }
+
+    /**
+     * 초대 거절 (auth_manage 권한 필요, family 데이터 삭제)
+     */
+    @Transactional
+    public ApiResponse<Void> rejectInvitation(UUID memberId, Long childId, UUID targetMemberId) {
+        log.info("Rejecting invitation for member {} in child {} by member {}", targetMemberId, childId, memberId);
+
+        // 관리 권한 확인
+        childAccessValidator.validateManageAccess(memberId, childId);
+
+        // 대상 회원의 parent 관계 조회
+        Parent targetParent = parentRepository.findByMbIdAndChSeq(targetMemberId, childId)
+                .orElseThrow(() -> new ChildAccessDeniedException(AccessErrorCode.NO_ACCESS));
+
+        parentRepository.delete(targetParent);
+
+        return ApiResponse.success("초대 거절 성공", null);
     }
 
     /**
@@ -175,6 +235,7 @@ public class FamilyService {
                 .authWrite(savedParent.getAuthWrite())
                 .authDelete(savedParent.getAuthDelete())
                 .isMe(savedParent.getMbId().equals(memberId))
+                .isApproved("1".equals(savedParent.getAuthRead()))
                 .build();
 
         return ApiResponse.success("관계명 수정 성공", result);

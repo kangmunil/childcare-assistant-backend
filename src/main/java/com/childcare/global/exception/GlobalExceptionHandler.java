@@ -63,6 +63,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(ChildImageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleChildImageException(ChildImageException e) {
+        log.error("Child image error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
     @ExceptionHandler(ChecklistException.class)
     public ResponseEntity<ApiResponse<Void>> handleChecklistException(ChecklistException e) {
         log.error("Checklist error: {} - {}", e.getCode(), e.getMessage());
