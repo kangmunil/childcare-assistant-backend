@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
@@ -45,14 +47,13 @@ public class GeoController {
         if (kakaoRestApiKey == null || kakaoRestApiKey.isBlank()) {
             log.error("Kakao API Key is missing! Check application.yml or environment variables.");
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Kakao API key not configured"));
+                    .body(Map.of(
+                            "code", "GEO_CONFIG_MISSING",
+                            "error", "Kakao REST API key not configured"));
         }
 
         try {
-            String keyPrefix = (kakaoRestApiKey != null && kakaoRestApiKey.length() > 5)
-                    ? kakaoRestApiKey.substring(0, 5) + "..."
-                    : "INVALID";
-            log.info("Calling Kakao API with Key prefix: {}", keyPrefix);
+            log.info("Calling Kakao Local API for reverse geocoding");
 
             String url = String.format(
                     "https://dapi.kakao.com/v2/local/geo/coord2address.json?x=%f&y=%f",
@@ -72,10 +73,28 @@ public class GeoController {
 
             return ResponseEntity.ok(response.getBody());
 
-        } catch (Exception e) {
-            log.error("Kakao API call failed", e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Failed to convert coordinates: " + e.getMessage()));
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                log.error("Kakao Local API authentication failed: status={}, body={}",
+                        e.getStatusCode().value(), e.getResponseBodyAsString());
+                return ResponseEntity.status(502)
+                        .body(Map.of(
+                                "code", "GEO_UPSTREAM_AUTH",
+                                "error", "Kakao Local API authentication failed"));
+            }
+
+            log.error("Kakao Local API returned client error: status={}, body={}",
+                    e.getStatusCode().value(), e.getResponseBodyAsString());
+            return ResponseEntity.status(502)
+                    .body(Map.of(
+                            "code", "GEO_UPSTREAM_FAILED",
+                            "error", "Kakao Local API request failed"));
+        } catch (RestClientException e) {
+            log.error("Kakao Local API request failed", e);
+            return ResponseEntity.status(502)
+                    .body(Map.of(
+                            "code", "GEO_UPSTREAM_FAILED",
+                            "error", "Kakao Local API request failed"));
         }
     }
 }
