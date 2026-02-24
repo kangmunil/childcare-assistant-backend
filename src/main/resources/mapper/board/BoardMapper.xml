@@ -28,7 +28,28 @@
 
     <sql id="wherePostcode">
         <if test="postcode != null">
-            AND i.reg_user_postcode = #{postcode}
+            AND (
+                <choose>
+                    <when test="regionCode != null and regionCode != ''">
+                        i.reg_user_region_code = #{regionCode}
+                        OR (
+                            i.reg_user_region_code IS NULL
+                            AND (
+                                i.reg_user_postcode = #{postcode}
+                                <if test="postcodePrefix != null">
+                                    OR (i.reg_user_postcode &lt; 1000 AND i.reg_user_postcode = #{postcodePrefix})
+                                </if>
+                            )
+                        )
+                    </when>
+                    <otherwise>
+                        i.reg_user_postcode = #{postcode}
+                        <if test="postcodePrefix != null">
+                            OR (i.reg_user_postcode &lt; 1000 AND i.reg_user_postcode = #{postcodePrefix})
+                        </if>
+                    </otherwise>
+                </choose>
+            )
         </if>
     </sql>
 
@@ -138,6 +159,19 @@
         FROM board_comment c
         LEFT JOIN member m ON c.reg_id = m.id
         WHERE c.bi_seq = #{itemId}
+          AND (
+              (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+              OR (
+                  c.parent_seq IS NULL
+                  AND c.delete_yn = 'Y'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM board_comment child
+                      WHERE child.parent_seq = c.bc_seq
+                        AND (child.delete_yn IS NULL OR child.delete_yn != 'Y')
+                  )
+              )
+          )
         ORDER BY
             CASE WHEN c.fix_yn = 'Y' AND c.parent_seq IS NULL THEN 0 ELSE 1 END,
             COALESCE(c.parent_seq, c.bc_seq),
@@ -170,6 +204,7 @@
         WHERE i.bo_seq = #{boardId}
           AND i.fix_yn = 'Y'
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        <include refid="wherePostcode"/>
         <if test="category != null and category != ''">
           AND i.bi_category = #{category}
         </if>
@@ -201,6 +236,7 @@
         WHERE i.bo_seq = #{boardId}
           AND i.fix_yn IS NULL
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+        <include refid="wherePostcode"/>
         <if test="category != null and category != ''">
           AND i.bi_category = #{category}
         </if>

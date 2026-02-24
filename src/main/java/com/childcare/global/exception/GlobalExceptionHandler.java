@@ -27,6 +27,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(AiException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAiException(AiException e) {
+        log.error("AI error: {} - {}", e.getCode(), e.getMessage());
+        return ResponseEntity.status(e.getStatus()).body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
     @ExceptionHandler(ChildAccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleChildAccessDeniedException(ChildAccessDeniedException e) {
         log.error("Access denied: {} - {}", e.getCode(), e.getMessage());

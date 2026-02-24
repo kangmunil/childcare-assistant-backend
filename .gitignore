@@ -38,6 +38,7 @@ out/
 
 ### Project Docs (local only) ###
 docs/
+!src/test/resources/docs/
 
 ### Logs ###
 logs/

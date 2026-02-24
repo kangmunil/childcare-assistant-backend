@@ -88,6 +88,9 @@ public class MemberService {
         if (request.getRegionName() != null) {
             member.setRegionName(request.getRegionName());
         }
+        if (request.getRegionCode() != null) {
+            member.setRegionCode(request.getRegionCode());
+        }
 
         Member updatedMember = memberRepository.save(member);
 
@@ -153,6 +156,7 @@ public class MemberService {
                 .inviteCode(member.getInviteCode())
                 .profileImageUrl(member.getProfileImageUrl())
                 .regionName(member.getRegionName())
+                .regionCode(member.getRegionCode())
                 .build();
     }
 }

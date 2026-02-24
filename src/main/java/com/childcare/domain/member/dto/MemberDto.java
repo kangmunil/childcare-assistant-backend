@@ -23,4 +23,5 @@ public class MemberDto {
     private String inviteCode;
     private String profileImageUrl;
     private String regionName;
+    private String regionCode;
 }

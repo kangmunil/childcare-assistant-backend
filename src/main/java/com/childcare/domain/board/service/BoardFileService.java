@@ -13,8 +13,8 @@ import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.exception.BoardException;
 import com.childcare.global.exception.BoardException.BoardErrorCode;
 import com.childcare.global.service.SupabaseStorageService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,16 +28,29 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 @Transactional(readOnly = true)
 public class BoardFileService {
+    private static final Logger log = LoggerFactory.getLogger(BoardFileService.class);
 
     private final BoardRepository boardRepository;
     private final BoardItemRepository boardItemRepository;
     private final BoardFileRepository boardFileRepository;
     private final MemberRepository memberRepository;
     private final SupabaseStorageService storageService;
+
+    public BoardFileService(
+            BoardRepository boardRepository,
+            BoardItemRepository boardItemRepository,
+            BoardFileRepository boardFileRepository,
+            MemberRepository memberRepository,
+            SupabaseStorageService storageService
+    ) {
+        this.boardRepository = boardRepository;
+        this.boardItemRepository = boardItemRepository;
+        this.boardFileRepository = boardFileRepository;
+        this.memberRepository = memberRepository;
+        this.storageService = storageService;
+    }
 
     // 기본 허용 확장자
     private static final List<String> DEFAULT_ALLOWED_EXTENSIONS = Arrays.asList(
@@ -61,10 +74,11 @@ public class BoardFileService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 작성 권한 검증 (게시글 작성자 또는 ADMIN)
         Member member = getMember(memberId);
+        validateNeighborAccess(board, member, item);
         validateFileUploadPermission(board, member, item.getRegId());
 
         // 파일 개수 제한 확인
@@ -116,11 +130,12 @@ public class BoardFileService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         // 파일 조회
         BoardFile boardFile = boardFileRepository.findById(fileId)
@@ -144,10 +159,11 @@ public class BoardFileService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 삭제 권한 검증
         Member member = getMember(memberId);
+        validateNeighborAccess(board, member, item);
         validateFileDeletePermission(board, member, item.getRegId());
 
         // 파일 조회
@@ -176,11 +192,12 @@ public class BoardFileService {
 
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
-        validateItem(itemId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
 
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
         List<BoardFileDto> fileDtos = files.stream()
@@ -275,6 +292,14 @@ public class BoardFileService {
         return item;
     }
 
+    private BoardItem validateItemInBoard(Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+        return item;
+    }
+
     private Member getMember(UUID memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
@@ -308,6 +333,17 @@ public class BoardFileService {
         }
     }
 
+    private void validateNeighborAccess(Board board, Member member, BoardItem item) {
+        if (!"Y".equals(board.getBoNeighborYn())) {
+            return;
+        }
+
+        NeighborPostcodeScope scope = resolveNeighborPostcodeScope(member);
+        if (!isNeighborMatched(item.getRegUserRegionCode(), item.getRegUserPostcode(), scope)) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
+        }
+    }
+
     private BoardFileDto toDto(BoardFile file) {
         // 서명된 다운로드 URL 생성 (1시간 유효)
         String downloadUrl = storageService.getSignedUrl(file.getBfPath(), 3600);
@@ -323,5 +359,65 @@ public class BoardFileService {
                 .regDate(file.getRegDate())
                 .downloadUrl(downloadUrl)
                 .build();
+    }
+
+    private NeighborPostcodeScope resolveNeighborPostcodeScope(Member member) {
+        if (member.getPostcode() == null || member.getPostcode().isBlank()) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+
+        String normalizedRegionCode = normalizeRegionCode(member.getRegionCode());
+        String digitsOnly = member.getPostcode().replaceAll("\\D", "");
+        if (digitsOnly.length() < 3) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+
+        try {
+            String exactRaw = digitsOnly.length() >= 5 ? digitsOnly.substring(0, 5) : digitsOnly;
+            String prefixRaw = digitsOnly.substring(0, 3);
+
+            int exactPostcode = Integer.parseInt(exactRaw);
+            int legacyPrefix = Integer.parseInt(prefixRaw);
+            return new NeighborPostcodeScope(normalizedRegionCode, exactPostcode, legacyPrefix);
+        } catch (NumberFormatException e) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+    }
+
+    private boolean isNeighborMatched(String itemRegionCode, Integer itemPostcode, NeighborPostcodeScope scope) {
+        if (scope == null) {
+            return false;
+        }
+
+        String normalizedItemRegionCode = normalizeRegionCode(itemRegionCode);
+        if (hasText(scope.regionCode()) && hasText(normalizedItemRegionCode)) {
+            return scope.regionCode().equals(normalizedItemRegionCode);
+        }
+
+        if (itemPostcode == null) {
+            return false;
+        }
+
+        if (itemPostcode.equals(scope.exactPostcode())) {
+            return true;
+        }
+
+        // Legacy data compatibility: historical posts may have 3-digit prefix only.
+        return itemPostcode < 1000 && itemPostcode.equals(scope.legacyPrefix());
+    }
+
+    private String normalizeRegionCode(String regionCode) {
+        if (regionCode == null) {
+            return null;
+        }
+        String normalized = regionCode.trim();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record NeighborPostcodeScope(String regionCode, int exactPostcode, int legacyPrefix) {
     }
 }

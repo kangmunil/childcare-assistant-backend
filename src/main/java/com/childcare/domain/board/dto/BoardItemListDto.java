@@ -31,6 +31,7 @@ public class BoardItemListDto {
 
     // 첨부파일 여부
     private boolean hasFile;
+    private String thumbnailUrl;
 
     // 인기글 여부 (조회수+공감수 상위 3건)
     private boolean isPopular;

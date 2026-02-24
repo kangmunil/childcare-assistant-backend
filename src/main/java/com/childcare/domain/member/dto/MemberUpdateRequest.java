@@ -22,4 +22,6 @@ public class MemberUpdateRequest {
     private String addr2;
 
     private String regionName;
+
+    private String regionCode;
 }

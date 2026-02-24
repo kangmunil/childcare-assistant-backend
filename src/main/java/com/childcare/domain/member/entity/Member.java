@@ -71,6 +71,9 @@ public class Member {
     @Column(name = "region_name", length = 50)
     private String regionName;
 
+    @Column(name = "region_code", length = 20)
+    private String regionCode;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -9,6 +9,7 @@ import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.exception.BoardException;
 import com.childcare.global.exception.BoardException.BoardErrorCode;
+import com.childcare.global.service.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class BoardItemService {
+    private static final int SIGNED_URL_EXPIRE_SECONDS = 3600;
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of(
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"
+    );
 
     private final BoardRepository boardRepository;
     private final BoardItemRepository boardItemRepository;
@@ -33,6 +38,7 @@ public class BoardItemService {
     private final MemberRepository memberRepository;
     private final ForbiddenWordChecker forbiddenWordChecker;
     private final BoardMapper boardMapper;
+    private final SupabaseStorageService storageService;
 
     /**
      * 게시글 목록 조회
@@ -125,10 +131,13 @@ public class BoardItemService {
 
     private ApiResponse<BoardItemDto> updateItemInternal(UUID memberId, Board board, Long itemId,
             BoardItemRequest request) {
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
 
         // 수정 권한 검증
         Member member = getMember(memberId);
+        if ("Y".equals(board.getBoNeighborYn())) {
+            validateNeighborAccess(board, member, item);
+        }
         validateModifyPermission(board, member, item.getRegId());
 
         // 필수값 검증
@@ -186,10 +195,13 @@ public class BoardItemService {
     }
 
     private ApiResponse<Void> deleteItemInternal(UUID memberId, Board board, Long itemId) {
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
 
         // 삭제 권한 검증
         Member member = getMember(memberId);
+        if ("Y".equals(board.getBoNeighborYn())) {
+            validateNeighborAccess(board, member, item);
+        }
         validateDeletePermission(board, member, item.getRegId());
 
         // 첨부파일 하드 삭제
@@ -213,8 +225,9 @@ public class BoardItemService {
         log.info("Like item: {} for member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
-        validateBoard(boardId);
-        return likeItemInternal(memberId, boardId, itemId);
+        Board board = validateBoard(boardId);
+        Member member = getMember(memberId);
+        return likeItemInternal(memberId, board, member, itemId);
     }
 
     /**
@@ -224,7 +237,8 @@ public class BoardItemService {
     public ApiResponse<Integer> likeItemBySlug(UUID memberId, String slug, Long itemId) {
         log.info("Like item: {} for board slug: {}, member: {}", itemId, slug, memberId);
         Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
-        return likeItemInternal(memberId, board.getBoSeq(), itemId);
+        Member member = getMember(memberId);
+        return likeItemInternal(memberId, board, member, itemId);
     }
 
     /**
@@ -235,8 +249,9 @@ public class BoardItemService {
         log.info("Unlike item: {} for member: {}", itemId, memberId);
 
         // 게시판 및 게시글 조회
-        validateBoard(boardId);
-        return unlikeItemInternal(memberId, boardId, itemId);
+        Board board = validateBoard(boardId);
+        Member member = getMember(memberId);
+        return unlikeItemInternal(memberId, board, member, itemId);
     }
 
     /**
@@ -246,7 +261,8 @@ public class BoardItemService {
     public ApiResponse<Integer> unlikeItemBySlug(UUID memberId, String slug, Long itemId) {
         log.info("Unlike item: {} for board slug: {}, member: {}", itemId, slug, memberId);
         Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
-        return unlikeItemInternal(memberId, board.getBoSeq(), itemId);
+        Member member = getMember(memberId);
+        return unlikeItemInternal(memberId, board, member, itemId);
     }
 
     // ========== Private Methods ==========
@@ -286,9 +302,9 @@ public class BoardItemService {
         }
 
         // 동네 게시판인 경우 우편번호 검증
-        Integer userPostcode = null;
+        NeighborPostcodeScope postcodeScope = null;
         if ("Y".equals(board.getBoNeighborYn())) {
-            userPostcode = validateNeighborAuth(member);
+            postcodeScope = resolveNeighborPostcodeScope(member);
         }
 
         // 고정 여부 (ADMIN만 설정 가능)
@@ -306,7 +322,8 @@ public class BoardItemService {
                 .readCount(0)
                 .likeCount(0)
                 .fixYn(fixYn)
-                .regUserPostcode(userPostcode)
+                .regUserPostcode(postcodeScope == null ? null : postcodeScope.exactPostcode())
+                .regUserRegionCode(postcodeScope == null ? null : postcodeScope.regionCode())
                 .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
@@ -328,6 +345,14 @@ public class BoardItemService {
         return item;
     }
 
+    private BoardItem validateItemInBoard(Long boardId, Long itemId) {
+        BoardItem item = validateItem(itemId);
+        if (!item.getBoSeq().equals(boardId)) {
+            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+        }
+        return item;
+    }
+
     private Member getMember(UUID memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
@@ -336,6 +361,13 @@ public class BoardItemService {
     private void validateReadPermission(Board board, Member member) {
         if ("ADMIN".equals(board.getBoReadAuth()) && !"ADMIN".equals(member.getRole().name())) {
             throw new BoardException(BoardErrorCode.READ_PERMISSION_DENIED);
+        }
+    }
+
+    private void validateNeighborAccess(Board board, Member member, BoardItem item) {
+        NeighborPostcodeScope scope = resolveNeighborPostcodeScope(member);
+        if (!isNeighborMatched(item.getRegUserRegionCode(), item.getRegUserPostcode(), scope)) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
         }
     }
 
@@ -370,15 +402,61 @@ public class BoardItemService {
         }
     }
 
-    private Integer validateNeighborAuth(Member member) {
+    private NeighborPostcodeScope resolveNeighborPostcodeScope(Member member) {
         if (member.getPostcode() == null || member.getPostcode().isBlank()) {
             throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
         }
-        try {
-            return Integer.parseInt(member.getPostcode().substring(0, 3));
-        } catch (Exception e) {
+
+        String normalizedRegionCode = normalizeRegionCode(member.getRegionCode());
+        String digitsOnly = member.getPostcode().replaceAll("\\D", "");
+        if (digitsOnly.length() < 3) {
             throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
         }
+
+        try {
+            String exactRaw = digitsOnly.length() >= 5 ? digitsOnly.substring(0, 5) : digitsOnly;
+            String prefixRaw = digitsOnly.substring(0, 3);
+
+            int exactPostcode = Integer.parseInt(exactRaw);
+            int legacyPrefix = Integer.parseInt(prefixRaw);
+            return new NeighborPostcodeScope(normalizedRegionCode, exactPostcode, legacyPrefix);
+        } catch (NumberFormatException e) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+    }
+
+    private boolean isNeighborMatched(String itemRegionCode, Integer itemPostcode, NeighborPostcodeScope scope) {
+        if (scope == null) {
+            return false;
+        }
+
+        String normalizedItemRegionCode = normalizeRegionCode(itemRegionCode);
+        if (hasText(scope.regionCode()) && hasText(normalizedItemRegionCode)) {
+            return scope.regionCode().equals(normalizedItemRegionCode);
+        }
+
+        if (itemPostcode == null) {
+            return false;
+        }
+
+        if (itemPostcode.equals(scope.exactPostcode())) {
+            return true;
+        }
+
+        // Legacy data compatibility: historical posts may have 3-digit prefix only.
+        return itemPostcode < 1000 && itemPostcode.equals(scope.legacyPrefix());
+    }
+
+    private String normalizeRegionCode(String regionCode) {
+        if (regionCode == null) {
+            return null;
+        }
+        String normalized = regionCode.trim();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private void validateItemRequest(BoardItemRequest request) {
@@ -410,10 +488,12 @@ public class BoardItemService {
         }
     }
 
-    private ApiResponse<Integer> likeItemInternal(UUID memberId, Long boardId, Long itemId) {
-        BoardItem item = validateItem(itemId);
-        if (!item.getBoSeq().equals(boardId)) {
-            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+    private ApiResponse<Integer> likeItemInternal(UUID memberId, Board board, Member member, Long itemId) {
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
+
+        validateReadPermission(board, member);
+        if ("Y".equals(board.getBoNeighborYn())) {
+            validateNeighborAccess(board, member, item);
         }
 
         // 이미 공감했는지 확인
@@ -437,10 +517,12 @@ public class BoardItemService {
         return ApiResponse.success("공감 성공", newLikeCount);
     }
 
-    private ApiResponse<Integer> unlikeItemInternal(UUID memberId, Long boardId, Long itemId) {
-        BoardItem item = validateItem(itemId);
-        if (!item.getBoSeq().equals(boardId)) {
-            throw new BoardException(BoardErrorCode.ITEM_NOT_FOUND);
+    private ApiResponse<Integer> unlikeItemInternal(UUID memberId, Board board, Member member, Long itemId) {
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
+
+        validateReadPermission(board, member);
+        if ("Y".equals(board.getBoNeighborYn())) {
+            validateNeighborAccess(board, member, item);
         }
 
         // 공감했는지 확인
@@ -459,7 +541,7 @@ public class BoardItemService {
     }
 
     private ApiResponse<BoardItemDto> getItemInternal(UUID memberId, Board board, Long itemId) {
-        BoardItem item = validateItem(itemId);
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
 
         // 읽기 권한 검증
         Member member = getMember(memberId);
@@ -467,10 +549,7 @@ public class BoardItemService {
 
         // 동네 게시판인 경우 동네 검증
         if ("Y".equals(board.getBoNeighborYn())) {
-            Integer userPostcode = validateNeighborAuth(member);
-            if (!userPostcode.equals(item.getRegUserPostcode())) {
-                throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
-            }
+            validateNeighborAccess(board, member, item);
         }
 
         // 조회수 증가 (중복 방지)
@@ -498,29 +577,40 @@ public class BoardItemService {
         validateReadPermission(board, member);
 
         // 동네 게시판인 경우 우편번호 검증
-        Integer userPostcode = null;
+        NeighborPostcodeScope postcodeScope = null;
         if ("Y".equals(board.getBoNeighborYn())) {
-            userPostcode = validateNeighborAuth(member);
+            postcodeScope = resolveNeighborPostcodeScope(member);
         }
 
         String category = normalizeCategory(searchRequest.getCategory());
         Long boardId = board.getBoSeq();
+        String regionCode = postcodeScope == null ? null : postcodeScope.regionCode();
+        Integer postcode = postcodeScope == null ? null : postcodeScope.exactPostcode();
+        Integer postcodePrefix = postcodeScope == null ? null : postcodeScope.legacyPrefix();
 
-        // 고정글 조회
-        List<BoardItemListDto> fixedDtos = boardMapper.getFixedItems(boardId, category, memberId);
-        Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
+        List<BoardItemListDto> fixedDtos = Collections.emptyList();
+        List<BoardItemListDto> popularDtos = Collections.emptyList();
 
-        // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-        List<BoardItemListDto> popularDtos = boardMapper.getPopularItems(boardId, category, memberId);
-        popularDtos = popularDtos.stream()
-                .filter(item -> !fixedIds.contains(item.getId()))
-                .peek(item -> item.setPopular(true))
-                .collect(Collectors.toList());
+        if (searchRequest.isIncludeHighlights()) {
+            // 고정글 조회
+            fixedDtos = boardMapper.getFixedItems(boardId, regionCode, postcode, postcodePrefix, category, memberId);
+            attachThumbnailUrls(fixedDtos);
+            Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
+
+            // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
+            popularDtos = boardMapper.getPopularItems(boardId, regionCode, postcode, postcodePrefix, category, memberId);
+            attachThumbnailUrls(popularDtos);
+            popularDtos = popularDtos.stream()
+                    .filter(item -> !fixedIds.contains(item.getId()))
+                    .peek(item -> item.setPopular(true))
+                    .collect(Collectors.toList());
+        }
 
         // 일반글 조회
-        Map<String, Object> searchResult = searchItems(boardId, userPostcode, searchRequest, category, memberId);
+        Map<String, Object> searchResult = searchItems(boardId, postcodeScope, searchRequest, category, memberId);
         @SuppressWarnings("unchecked")
         List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
+        attachThumbnailUrls(normalDtos);
 
         Map<String, Object> result = new HashMap<>();
         result.put("fixedItems", fixedDtos);
@@ -534,7 +624,8 @@ public class BoardItemService {
         return ApiResponse.success("게시글 목록 조회 성공", result);
     }
 
-    private Map<String, Object> searchItems(Long boardId, Integer userPostcode, BoardSearchRequest searchRequest,
+    private Map<String, Object> searchItems(Long boardId, NeighborPostcodeScope postcodeScope,
+            BoardSearchRequest searchRequest,
             String category, UUID memberId) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
@@ -548,9 +639,28 @@ public class BoardItemService {
         }
 
         // Mapper로 검색
-        List<BoardItemListDto> items = boardMapper.searchItems(boardId, userPostcode, category, memberId, searchType,
-                keyword, offset, size);
-        int totalCount = boardMapper.countSearchItems(boardId, userPostcode, category, searchType, keyword);
+        Integer postcode = postcodeScope == null ? null : postcodeScope.exactPostcode();
+        Integer postcodePrefix = postcodeScope == null ? null : postcodeScope.legacyPrefix();
+        String regionCode = postcodeScope == null ? null : postcodeScope.regionCode();
+        List<BoardItemListDto> items = boardMapper.searchItems(
+                boardId,
+                regionCode,
+                postcode,
+                postcodePrefix,
+                category,
+                memberId,
+                searchType,
+                keyword,
+                offset,
+                size);
+        int totalCount = boardMapper.countSearchItems(
+                boardId,
+                regionCode,
+                postcode,
+                postcodePrefix,
+                category,
+                searchType,
+                keyword);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 
         Map<String, Object> result = new HashMap<>();
@@ -563,7 +673,15 @@ public class BoardItemService {
         return result;
     }
 
+    private record NeighborPostcodeScope(String regionCode, int exactPostcode, int legacyPrefix) {
+    }
+
     private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, UUID memberId) {
+        Member member = getMember(memberId);
+        return toDto(item, files, commentCount, liked, member);
+    }
+
+    private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, Member member) {
         String authorName = memberRepository.findById(item.getRegId())
                 .map(Member::getName)
                 .orElse("Unknown");
@@ -573,16 +691,7 @@ public class BoardItemService {
                 .orElse("");
 
         List<BoardFileDto> fileDtos = files.stream()
-                .map(file -> BoardFileDto.builder()
-                        .id(file.getBfSeq())
-                        .itemId(file.getBiSeq())
-                        .orgFilename(file.getOrgFilename())
-                        .fileName(file.getBfName())
-                        .filePath(file.getBfPath())
-                        .extension(file.getBfExtension())
-                        .fileSize(file.getBfSize())
-                        .regDate(file.getRegDate())
-                        .build())
+                .map(this::toFileDto)
                 .collect(Collectors.toList());
 
         return BoardItemDto.builder()
@@ -604,7 +713,77 @@ public class BoardItemService {
                 .files(fileDtos)
                 .commentCount(commentCount)
                 .liked(liked)
-                .isAuthor(item.getRegId().equals(memberId))
+                .isAuthor(member.getId().equals(item.getRegId()) || "ADMIN".equals(member.getRole().name()))
+                .build();
+    }
+
+    private void attachThumbnailUrls(List<BoardItemListDto> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        List<Long> itemIds = items.stream()
+                .filter(Objects::nonNull)
+                .filter(BoardItemListDto::isHasFile)
+                .map(BoardItemListDto::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (itemIds.isEmpty()) {
+            return;
+        }
+
+        List<BoardFile> files = boardFileRepository.findByBiSeqInOrderByRegDateAsc(itemIds);
+        Map<Long, String> thumbnailUrlByItemId = new HashMap<>();
+
+        for (BoardFile file : files) {
+            Long itemId = file.getBiSeq();
+            if (itemId == null || thumbnailUrlByItemId.containsKey(itemId)) {
+                continue;
+            }
+            if (!isImageExtension(file.getBfExtension())) {
+                continue;
+            }
+            String signedUrl = getSignedUrl(file.getBfPath());
+            if (signedUrl != null) {
+                thumbnailUrlByItemId.put(itemId, signedUrl);
+            }
+        }
+
+        items.forEach(item -> item.setThumbnailUrl(thumbnailUrlByItemId.get(item.getId())));
+    }
+
+    private boolean isImageExtension(String extension) {
+        if (extension == null || extension.isBlank()) {
+            return false;
+        }
+        return IMAGE_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT));
+    }
+
+    private String getSignedUrl(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return null;
+        }
+        try {
+            return storageService.getSignedUrl(filePath, SIGNED_URL_EXPIRE_SECONDS);
+        } catch (Exception e) {
+            log.warn("Failed to issue signed URL for filePath: {}", filePath, e);
+            return null;
+        }
+    }
+
+    private BoardFileDto toFileDto(BoardFile file) {
+        return BoardFileDto.builder()
+                .id(file.getBfSeq())
+                .itemId(file.getBiSeq())
+                .orgFilename(file.getOrgFilename())
+                .fileName(file.getBfName())
+                .filePath(file.getBfPath())
+                .extension(file.getBfExtension())
+                .fileSize(file.getBfSize())
+                .regDate(file.getRegDate())
+                .downloadUrl(getSignedUrl(file.getBfPath()))
                 .build();
     }
 

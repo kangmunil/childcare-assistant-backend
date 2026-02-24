@@ -1,5 +1,6 @@
 package com.childcare.domain.board.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -40,6 +41,7 @@ public class BoardCommentDto {
     private boolean liked;
 
     // 현재 사용자가 작성자인지 여부
+    @JsonProperty("isAuthor")
     private boolean isAuthor;
 
     // 비밀댓글 접근 가능 여부

@@ -32,7 +32,7 @@ public class ChildImageService {
     private final ChildAccessValidator childAccessValidator;
     private final SupabaseStorageService storageService;
 
-    @Value("${supabase.storage.child-image-bucket}")
+    @Value("${supabase.storage.child-image-bucket:${supabase.storage.bucket:board-files}}")
     private String childImageBucket;
 
     private static final List<String> ALLOWED_IMAGE_EXTENSIONS = Arrays.asList(

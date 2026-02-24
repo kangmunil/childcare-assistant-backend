@@ -46,6 +46,9 @@ public class BoardItem {
     @Column(name = "reg_user_postcode")
     private Integer regUserPostcode;
 
+    @Column(name = "reg_user_region_code", length = 20)
+    private String regUserRegionCode;
+
     @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
     private UUID regId;
 
