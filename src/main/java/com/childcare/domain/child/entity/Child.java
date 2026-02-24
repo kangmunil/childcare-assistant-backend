@@ -57,4 +57,7 @@ public class Child {
 
     @Column(name = "delete_date")
     private LocalDateTime deleteDate;
+
+    @Column(name = "is_primary", length = 1)
+    private String isPrimary;
 }

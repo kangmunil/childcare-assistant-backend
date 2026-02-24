@@ -99,6 +99,7 @@ public class ChildService {
                 .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .deleteYn("N")
+                .isPrimary("N")
                 .build();
 
         Child savedChild = childRepository.save(child);
@@ -255,6 +256,26 @@ public class ChildService {
         return ApiResponse.success("성장 통계 조회 성공", data);
     }
 
+    @Transactional
+    public ApiResponse<Void> setPrimaryChild(UUID memberId, Long childId) {
+        log.info("Setting primary child {} for member: {}", childId, memberId);
+
+        // 해당 회원의 자녀인지 확인
+        List<Child> children = childMapper.findActiveChildrenByMemberId(memberId);
+        boolean hasAccess = children.stream()
+                .anyMatch(c -> c.getChSeq().equals(childId));
+
+        if (!hasAccess) {
+            throw new ChildException(ChildErrorCode.NOT_FOUND);
+        }
+
+        // 해당 회원의 모든 자녀 is_primary 초기화 후 선택한 자녀만 설정
+        childMapper.clearPrimaryByMemberId(memberId);
+        childMapper.setPrimary(childId);
+
+        return ApiResponse.success("대표 자녀 설정 성공", null);
+    }
+
     private ChildDto toDto(Child child, UUID currentMemberId) {
         String genderStr = "M".equals(child.getGender()) ? "male" : "female";
 
@@ -287,6 +308,7 @@ public class ChildService {
                 .photoUrl(photoUrl)
                 .ownerName(ownerName)
                 .isOwner(isOwner)
+                .isPrimary("Y".equals(child.getIsPrimary()))
                 .build();
     }
 }
