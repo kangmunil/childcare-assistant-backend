@@ -65,7 +65,7 @@ ai:
   service-url: ${AI_SERVICE_URL:http://localhost:8000}
 
 kakao:
-  rest-api-key: "3448dddf025119f095c66dc18b990845"
+  rest-api-key: ${KAKAO_REST_API_KEY:}
 
 logging:
   level:
