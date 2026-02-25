@@ -568,9 +568,9 @@ public class BoardItemService {
                 .map(Member::getName)
                 .orElse("Unknown");
 
-        String boardTitle = boardRepository.findById(item.getBoSeq())
-                .map(Board::getBoTitle)
-                .orElse("");
+        Board board = boardRepository.findById(item.getBoSeq()).orElse(null);
+        String boardTitle = board != null ? board.getBoTitle() : "";
+        String boardSlug = board != null ? board.getBoSlug() : "";
 
         List<BoardFileDto> fileDtos = files.stream()
                 .map(file -> BoardFileDto.builder()
@@ -588,6 +588,7 @@ public class BoardItemService {
         return BoardItemDto.builder()
                 .id(item.getBiSeq())
                 .boardId(item.getBoSeq())
+                .boardSlug(boardSlug)
                 .boardTitle(boardTitle)
                 .title(item.getTitle())
                 .content(item.getContent())

@@ -59,7 +59,7 @@ public class BoardItemController {
      * 게시글 목록 조회 (slug 기반)
      * GET /boards/{slug}/items
      */
-    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
+    @GetMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getItemListBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @RequestParam(required = false) String searchType,
@@ -102,7 +102,7 @@ public class BoardItemController {
      * 게시글 상세 조회 (slug 기반)
      * GET /boards/{slug}/items/{itemId}
      */
-    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    @GetMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}")
     public ResponseEntity<ApiResponse<BoardItemDto>> getItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId) {
@@ -131,7 +131,7 @@ public class BoardItemController {
      * 게시글 작성 (slug 기반)
      * POST /boards/{slug}/items
      */
-    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items")
+    @PostMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items")
     public ResponseEntity<ApiResponse<BoardItemDto>> createItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @RequestBody BoardItemRequest request) {
@@ -162,7 +162,7 @@ public class BoardItemController {
      * 게시글 수정 (slug 기반)
      * PUT /boards/{slug}/items/{itemId}
      */
-    @PutMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    @PutMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}")
     public ResponseEntity<ApiResponse<BoardItemDto>> updateItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId,
@@ -194,7 +194,7 @@ public class BoardItemController {
      * 게시글 삭제 (slug 기반)
      * DELETE /boards/{slug}/items/{itemId}
      */
-    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}")
+    @DeleteMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}")
     public ResponseEntity<ApiResponse<Void>> deleteItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId) {
@@ -224,7 +224,7 @@ public class BoardItemController {
      * 게시글 공감 (slug 기반)
      * POST /boards/{slug}/items/{itemId}/like
      */
-    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    @PostMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/like")
     public ResponseEntity<ApiResponse<Integer>> likeItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId) {
@@ -253,7 +253,7 @@ public class BoardItemController {
      * 게시글 공감 취소 (slug 기반)
      * DELETE /boards/{slug}/items/{itemId}/like
      */
-    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/like")
+    @DeleteMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/like")
     public ResponseEntity<ApiResponse<Integer>> unlikeItemBySlug(
             @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
             @PathVariable Long itemId) {

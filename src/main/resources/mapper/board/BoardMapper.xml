@@ -17,6 +17,8 @@
         <result property="regUserRegionName" column="reg_user_region_name"/>
         <result property="regDate" column="reg_date"/>
         <result property="hasFile" column="has_file"/>
+        <result property="boardSlug" column="board_slug"/>
+        <result property="boardTitle" column="board_title"/>
     </resultMap>
 
     <sql id="FromboardItem">
@@ -206,6 +208,97 @@
         </if>
         ORDER BY (COALESCE(i.read_count, 0) + COALESCE(i.like_count, 0)) DESC
         LIMIT 3
+    </select>
+
+    <!-- 전체 게시글 조회 (게시판 구분 없이, bo_use_yn='Y' AND bo_read_auth='USER') -->
+    <select id="searchAllItems" resultMap="boardItemListResultMap">
+        SELECT
+            i.bi_seq,
+            i.title,
+            i.content,
+            i.bi_category,
+            COALESCE(i.read_count, 0) AS read_count,
+            COALESCE(i.like_count, 0) AS like_count,
+            (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
+            i.fix_yn,
+            i.reg_id,
+            m.name AS reg_user_name,
+            m.region_name AS reg_user_region_name,
+            i.reg_date,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM board_item_like bil
+                WHERE bil.bi_seq = i.bi_seq AND bil.mb_id = #{memberId}::uuid
+            ) THEN true ELSE false END AS liked,
+            CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file,
+            b.bo_slug AS board_slug,
+            b.bo_title AS board_title
+        FROM board_item i
+        JOIN member m ON i.reg_id = m.id
+        JOIN board b ON i.bo_seq = b.bo_seq
+        WHERE b.bo_use_yn = 'Y'
+          AND b.bo_read_auth = 'USER'
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+          /* 동네 게시판: postcode 일치하는 글만, 일반 게시판: 전체 */
+          AND (
+              COALESCE(b.bo_neighbor_yn, 'N') != 'Y'
+              <if test="postcode != null">
+                  OR i.reg_user_postcode = #{postcode}
+              </if>
+          )
+        <if test="keyword != null and keyword != ''">
+            <choose>
+                <when test="searchType == 'title'">
+                    AND LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'content'">
+                    AND LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'author'">
+                    AND LOWER(m.name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'titleContent'">
+                    AND (LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                         OR LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+                </when>
+            </choose>
+        </if>
+        ORDER BY CASE WHEN i.fix_yn = 'Y' THEN 0 ELSE 1 END, i.reg_date DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 전체 게시글 개수 -->
+    <select id="countAllItems" resultType="int">
+        SELECT COUNT(*)
+        FROM board_item i
+        JOIN member m ON i.reg_id = m.id
+        JOIN board b ON i.bo_seq = b.bo_seq
+        WHERE b.bo_use_yn = 'Y'
+          AND b.bo_read_auth = 'USER'
+          AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+          /* 동네 게시판: postcode 일치하는 글만, 일반 게시판: 전체 */
+          AND (
+              COALESCE(b.bo_neighbor_yn, 'N') != 'Y'
+              <if test="postcode != null">
+                  OR i.reg_user_postcode = #{postcode}
+              </if>
+          )
+        <if test="keyword != null and keyword != ''">
+            <choose>
+                <when test="searchType == 'title'">
+                    AND LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'content'">
+                    AND LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'author'">
+                    AND LOWER(m.name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                </when>
+                <when test="searchType == 'titleContent'">
+                    AND (LOWER(i.title) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                         OR LOWER(i.content) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+                </when>
+            </choose>
+        </if>
     </select>
 
 </mapper>

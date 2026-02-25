@@ -34,4 +34,8 @@ public class BoardItemListDto {
 
     // 인기글 여부 (조회수+공감수 상위 3건)
     private boolean isPopular;
+
+    // 게시판 정보
+    private String boardSlug;
+    private String boardTitle;
 }

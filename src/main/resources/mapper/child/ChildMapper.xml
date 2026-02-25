@@ -16,6 +16,7 @@
         <result property="deleteYn" column="delete_yn"/>
         <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="deleteDate" column="delete_date"/>
+        <result property="isPrimary" column="is_primary"/>
     </resultMap>
 
     <select id="findActiveChildrenByMemberId" resultMap="childResultMap">
@@ -25,6 +26,7 @@
         JOIN parent p ON m.id = p.mb_id AND p.auth_read = '1'
         JOIN child c ON c.ch_seq = p.ch_seq AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
         WHERE m.id = #{memberId}::uuid
+        ORDER BY c.is_primary desc, c.ch_seq
         ]]>
     </select>
 
@@ -34,6 +36,7 @@
         FROM child
         WHERE ch_seq = #{childId}
           AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ORDER BY is_primary desc, ch_seq
         ]]>
     </select>
 
@@ -122,5 +125,27 @@
         </choose>
         ORDER BY week
     </select>
+
+    <update id="clearPrimaryByMemberId">
+        <![CDATA[
+        UPDATE child
+        SET is_primary = 'N'
+        WHERE ch_seq IN (
+            SELECT p.ch_seq
+            FROM parent p
+            WHERE p.mb_id = #{memberId}::uuid
+        )
+        AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </update>
+
+    <update id="setPrimary">
+        <![CDATA[
+        UPDATE child
+        SET is_primary = 'Y'
+        WHERE ch_seq = #{childId}
+        AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </update>
 
 </mapper>

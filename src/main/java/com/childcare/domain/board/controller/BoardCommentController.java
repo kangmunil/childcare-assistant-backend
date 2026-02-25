@@ -47,7 +47,7 @@ public class BoardCommentController {
      * 댓글 목록 조회 (slug 기반)
      * GET /boards/{slug}/items/{itemId}/comments
      */
-    @GetMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments")
+    @GetMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments")
     public ResponseEntity<ApiResponse<List<BoardCommentDto>>> getCommentsBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -81,7 +81,7 @@ public class BoardCommentController {
      * 댓글 작성 (slug 기반)
      * POST /boards/{slug}/items/{itemId}/comments
      */
-    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments")
+    @PostMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments")
     public ResponseEntity<ApiResponse<BoardCommentDto>> createCommentBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -117,7 +117,7 @@ public class BoardCommentController {
      * 댓글 수정 (slug 기반)
      * PUT /boards/{slug}/items/{itemId}/comments/{commentId}
      */
-    @PutMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
+    @PutMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
     public ResponseEntity<ApiResponse<BoardCommentDto>> updateCommentBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -153,7 +153,7 @@ public class BoardCommentController {
      * 댓글 삭제 (slug 기반)
      * DELETE /boards/{slug}/items/{itemId}/comments/{commentId}
      */
-    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
+    @DeleteMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}")
     public ResponseEntity<ApiResponse<Void>> deleteCommentBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -188,7 +188,7 @@ public class BoardCommentController {
      * 댓글 공감 (slug 기반)
      * POST /boards/{slug}/items/{itemId}/comments/{commentId}/like
      */
-    @PostMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
+    @PostMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
     public ResponseEntity<ApiResponse<Integer>> likeCommentBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -223,7 +223,7 @@ public class BoardCommentController {
      * 댓글 공감 취소 (slug 기반)
      * DELETE /boards/{slug}/items/{itemId}/comments/{commentId}/like
      */
-    @DeleteMapping("/{slug:(?!\\d+$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
+    @DeleteMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/like")
     public ResponseEntity<ApiResponse<Integer>> unlikeCommentBySlug(
             @PathVariable
             @Pattern(regexp = "^[a-z0-9-]+$")
@@ -236,6 +236,58 @@ public class BoardCommentController {
 
         ApiResponse<Integer> response = boardCommentService.unlikeCommentBySlug(memberId, normalizedSlug, itemId, commentId);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 댓글 고정
+     * POST /boards/{boardId}/items/{itemId}/comments/{commentId}/pin
+     */
+    @PostMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}/pin")
+    public ResponseEntity<ApiResponse<Void>> pinComment(
+            @PathVariable Long boardId,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        return ResponseEntity.ok(boardCommentService.pinComment(memberId, boardId, itemId, commentId));
+    }
+
+    /**
+     * 댓글 고정 (slug 기반)
+     */
+    @PostMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/pin")
+    public ResponseEntity<ApiResponse<Void>> pinCommentBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        return ResponseEntity.ok(boardCommentService.pinCommentBySlug(memberId, normalizedSlug, itemId, commentId));
+    }
+
+    /**
+     * 댓글 고정 해제
+     * DELETE /boards/{boardId}/items/{itemId}/comments/{commentId}/pin
+     */
+    @DeleteMapping("/{boardId:\\d+}/items/{itemId}/comments/{commentId}/pin")
+    public ResponseEntity<ApiResponse<Void>> unpinComment(
+            @PathVariable Long boardId,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        return ResponseEntity.ok(boardCommentService.unpinComment(memberId, boardId, itemId, commentId));
+    }
+
+    /**
+     * 댓글 고정 해제 (slug 기반)
+     */
+    @DeleteMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/comments/{commentId}/pin")
+    public ResponseEntity<ApiResponse<Void>> unpinCommentBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId,
+            @PathVariable Long commentId) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        return ResponseEntity.ok(boardCommentService.unpinCommentBySlug(memberId, normalizedSlug, itemId, commentId));
     }
 
     private UUID getMemberId() {

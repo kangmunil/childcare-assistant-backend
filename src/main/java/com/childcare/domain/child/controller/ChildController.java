@@ -96,6 +96,15 @@ public class ChildController {
         return ResponseEntity.ok(response);
     }
 
+    @PatchMapping("/{childId}/primary")
+    public ResponseEntity<ApiResponse<Void>> setPrimaryChild(@PathVariable Long childId) {
+        UUID memberId = getMemberId();
+        log.info("Set primary child {} request for member: {}", childId, memberId);
+
+        ApiResponse<Void> response = childService.setPrimaryChild(memberId, childId);
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * 가족 관계 삭제
      * DELETE /children/{childId}/parents/{targetMbId}
