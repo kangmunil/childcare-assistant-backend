@@ -4,6 +4,7 @@ import com.childcare.domain.board.dto.*;
 import com.childcare.domain.board.entity.*;
 import com.childcare.domain.board.mapper.BoardMapper;
 import com.childcare.domain.board.repository.*;
+import com.childcare.domain.board.util.RegionLabelFormatter;
 import com.childcare.domain.member.entity.Member;
 import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.global.dto.ApiResponse;
@@ -24,10 +25,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class BoardItemService {
+    private static final String COMMUNITY_BOARD_KEY = "community";
     private static final int SIGNED_URL_EXPIRE_SECONDS = 3600;
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
-            "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"
-    );
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg");
 
     private final BoardRepository boardRepository;
     private final BoardItemRepository boardItemRepository;
@@ -157,6 +158,11 @@ public class BoardItemService {
         item.setTitle(request.getTitle());
         item.setContent(request.getContent());
         item.setBiCategory(normalizeCategory(request.getCategory()));
+        item.setPlaceName(request.getPlaceName());
+        item.setPlaceAddress(request.getPlaceAddress());
+        item.setPlaceLat(request.getPlaceLat());
+        item.setPlaceLng(request.getPlaceLng());
+        // 1차 정책: 수정 시 게시글 공개 범위(locationScope/postScope) 변경은 지원하지 않음.
         item.setUpdateId(memberId);
         item.setUpdateDate(LocalDateTime.now());
 
@@ -301,10 +307,29 @@ public class BoardItemService {
             throw new BoardException(BoardErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        // 동네 게시판인 경우 우편번호 검증
+        boolean neighborBoard = isNeighborBoard(board);
+        boolean communityBoard = isCommunityBoard(board);
+        String postScope = normalizePostScope(resolveRequestedPostScope(request));
+
+        // 동네 게시판/커뮤니티 글 작성 시 위치 정책 적용
         NeighborPostcodeScope postcodeScope = null;
-        if ("Y".equals(board.getBoNeighborYn())) {
+        String regionNameSnapshot = RegionLabelFormatter.normalize(member.getRegionName());
+        if (neighborBoard) {
             postcodeScope = resolveNeighborPostcodeScope(member);
+            regionNameSnapshot = RegionLabelFormatter.normalize(member.getRegionName());
+            postScope = "neighbor";
+        } else if (communityBoard) {
+            if (isNeighborPostScope(postScope)) {
+                postcodeScope = validateCommunityNeighborPostPermission(member);
+                regionNameSnapshot = RegionLabelFormatter.normalize(member.getRegionName());
+            } else {
+                postcodeScope = buildOptionalCommunityLocationScope(member);
+                if (postcodeScope != null) {
+                    regionNameSnapshot = RegionLabelFormatter.normalize(member.getRegionName());
+                } else {
+                    regionNameSnapshot = null;
+                }
+            }
         }
 
         // 고정 여부 (ADMIN만 설정 가능)
@@ -319,11 +344,17 @@ public class BoardItemService {
                 .title(request.getTitle())
                 .content(request.getContent())
                 .biCategory(normalizeCategory(request.getCategory()))
+                .placeName(request.getPlaceName())
+                .placeAddress(request.getPlaceAddress())
+                .placeLat(request.getPlaceLat())
+                .placeLng(request.getPlaceLng())
                 .readCount(0)
                 .likeCount(0)
                 .fixYn(fixYn)
+                .locationScope(postScope)
                 .regUserPostcode(postcodeScope == null ? null : postcodeScope.exactPostcode())
                 .regUserRegionCode(postcodeScope == null ? null : postcodeScope.regionCode())
+                .regUserRegionName(regionNameSnapshot)
                 .regId(memberId)
                 .regDate(LocalDateTime.now())
                 .build();
@@ -403,26 +434,40 @@ public class BoardItemService {
     }
 
     private NeighborPostcodeScope resolveNeighborPostcodeScope(Member member) {
-        if (member.getPostcode() == null || member.getPostcode().isBlank()) {
-            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
-        }
-
         String normalizedRegionCode = normalizeRegionCode(member.getRegionCode());
-        String digitsOnly = member.getPostcode().replaceAll("\\D", "");
-        if (digitsOnly.length() < 3) {
+        String postcodeRaw = member.getPostcode();
+        String digitsOnly = postcodeRaw == null ? "" : postcodeRaw.replaceAll("\\D", "");
+
+        Integer exactPostcode = null;
+        Integer legacyPrefix = null;
+
+        if (!digitsOnly.isBlank()) {
+            if (digitsOnly.length() < 3 && normalizedRegionCode == null) {
+                throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+            }
+
+            if (digitsOnly.length() >= 3) {
+                try {
+                    String exactRaw = digitsOnly.length() >= 5 ? digitsOnly.substring(0, 5) : digitsOnly;
+                    String prefixRaw = digitsOnly.substring(0, 3);
+
+                    exactPostcode = Integer.parseInt(exactRaw);
+                    legacyPrefix = Integer.parseInt(prefixRaw);
+                } catch (NumberFormatException e) {
+                    if (normalizedRegionCode == null) {
+                        throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+                    }
+                    exactPostcode = null;
+                    legacyPrefix = null;
+                }
+            }
+        }
+
+        if (normalizedRegionCode == null && exactPostcode == null) {
             throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
         }
 
-        try {
-            String exactRaw = digitsOnly.length() >= 5 ? digitsOnly.substring(0, 5) : digitsOnly;
-            String prefixRaw = digitsOnly.substring(0, 3);
-
-            int exactPostcode = Integer.parseInt(exactRaw);
-            int legacyPrefix = Integer.parseInt(prefixRaw);
-            return new NeighborPostcodeScope(normalizedRegionCode, exactPostcode, legacyPrefix);
-        } catch (NumberFormatException e) {
-            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
-        }
+        return new NeighborPostcodeScope(normalizedRegionCode, exactPostcode, legacyPrefix);
     }
 
     private boolean isNeighborMatched(String itemRegionCode, Integer itemPostcode, NeighborPostcodeScope scope) {
@@ -435,7 +480,7 @@ public class BoardItemService {
             return scope.regionCode().equals(normalizedItemRegionCode);
         }
 
-        if (itemPostcode == null) {
+        if (scope.exactPostcode() == null || itemPostcode == null) {
             return false;
         }
 
@@ -457,6 +502,66 @@ public class BoardItemService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private boolean isNeighborBoard(Board board) {
+        return board != null && "Y".equals(board.getBoNeighborYn());
+    }
+
+    private boolean isCommunityBoard(Board board) {
+        if (board == null) {
+            return false;
+        }
+        if (hasText(board.getBoSlug()) && COMMUNITY_BOARD_KEY.equalsIgnoreCase(board.getBoSlug().trim())) {
+            return true;
+        }
+        return hasText(board.getBoCode()) && COMMUNITY_BOARD_KEY.equalsIgnoreCase(board.getBoCode().trim());
+    }
+
+    private boolean shouldApplyLocationScopedFilter(Board board, BoardSearchRequest searchRequest) {
+        if (isNeighborBoard(board)) {
+            return true;
+        }
+        return isCommunityBoard(board) && searchRequest != null && searchRequest.isNeighborLocationScope();
+    }
+
+    private String resolveRequestedPostScope(BoardItemRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return firstNonBlank(request.getPostScope(), request.getLocationScope());
+    }
+
+    private String normalizePostScope(String rawScope) {
+        if (rawScope == null || rawScope.isBlank()) {
+            return "all";
+        }
+        return "neighbor".equalsIgnoreCase(rawScope.trim()) ? "neighbor" : "all";
+    }
+
+    private boolean isNeighborPostScope(String postScope) {
+        return "neighbor".equals(normalizePostScope(postScope));
+    }
+
+    private NeighborPostcodeScope validateCommunityNeighborPostPermission(Member member) {
+        if (!hasText(member.getRegionName())) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+        return resolveNeighborPostcodeScope(member);
+    }
+
+    private NeighborPostcodeScope buildOptionalCommunityLocationScope(Member member) {
+        if (member == null || !hasText(member.getRegionName())) {
+            return null;
+        }
+        try {
+            return resolveNeighborPostcodeScope(member);
+        } catch (BoardException e) {
+            if (BoardErrorCode.NEIGHBOR_AUTH_REQUIRED.getCode().equals(e.getCode())) {
+                return null;
+            }
+            throw e;
+        }
     }
 
     private void validateItemRequest(BoardItemRequest request) {
@@ -576,10 +681,21 @@ public class BoardItemService {
         Member member = getMember(memberId);
         validateReadPermission(board, member);
 
-        // 동네 게시판인 경우 우편번호 검증
+        // 동네 게시판 또는 커뮤니티의 내 동네 보기인 경우 위치 스코프 적용
         NeighborPostcodeScope postcodeScope = null;
-        if ("Y".equals(board.getBoNeighborYn())) {
-            postcodeScope = resolveNeighborPostcodeScope(member);
+        if (shouldApplyLocationScopedFilter(board, searchRequest)) {
+            try {
+                postcodeScope = resolveNeighborPostcodeScope(member);
+            } catch (BoardException e) {
+                // Community list should degrade to "all" scope when profile location is
+                // stale/missing.
+                if (isCommunityBoard(board)
+                        && BoardErrorCode.NEIGHBOR_AUTH_REQUIRED.getCode().equals(e.getCode())) {
+                    log.info("Fallback to all-scope community list due to missing location for member: {}", memberId);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         String category = normalizeCategory(searchRequest.getCategory());
@@ -593,17 +709,22 @@ public class BoardItemService {
 
         if (searchRequest.isIncludeHighlights()) {
             // 고정글 조회
-            fixedDtos = boardMapper.getFixedItems(boardId, regionCode, postcode, postcodePrefix, category, memberId);
+            fixedDtos = boardMapper.getFixedItems(boardId, regionCode, postcode, postcodePrefix, category,
+                    searchRequest.getLocationScope(), memberId);
             attachThumbnailUrls(fixedDtos);
+            attachLocationMetadata(fixedDtos, member);
             Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
 
             // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
-            popularDtos = boardMapper.getPopularItems(boardId, regionCode, postcode, postcodePrefix, category, memberId);
+            popularDtos = boardMapper.getPopularItems(boardId, regionCode, postcode, postcodePrefix, category,
+                    searchRequest.getLocationScope(),
+                    memberId);
             attachThumbnailUrls(popularDtos);
             popularDtos = popularDtos.stream()
                     .filter(item -> !fixedIds.contains(item.getId()))
                     .peek(item -> item.setPopular(true))
                     .collect(Collectors.toList());
+            attachLocationMetadata(popularDtos, member);
         }
 
         // 일반글 조회
@@ -611,6 +732,7 @@ public class BoardItemService {
         @SuppressWarnings("unchecked")
         List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
         attachThumbnailUrls(normalDtos);
+        attachLocationMetadata(normalDtos, member);
 
         Map<String, Object> result = new HashMap<>();
         result.put("fixedItems", fixedDtos);
@@ -632,6 +754,7 @@ public class BoardItemService {
         int page = searchRequest.getPage();
         int size = searchRequest.getSize();
         int offset = page * size;
+        String locationScope = searchRequest.getLocationScope();
 
         // searchType이 없으면 기본값 titleContent
         if (searchType == null || searchType.isBlank()) {
@@ -651,6 +774,7 @@ public class BoardItemService {
                 memberId,
                 searchType,
                 keyword,
+                locationScope,
                 offset,
                 size);
         int totalCount = boardMapper.countSearchItems(
@@ -660,7 +784,8 @@ public class BoardItemService {
                 postcodePrefix,
                 category,
                 searchType,
-                keyword);
+                keyword,
+                locationScope);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 
         Map<String, Object> result = new HashMap<>();
@@ -673,7 +798,7 @@ public class BoardItemService {
         return result;
     }
 
-    private record NeighborPostcodeScope(String regionCode, int exactPostcode, int legacyPrefix) {
+    private record NeighborPostcodeScope(String regionCode, Integer exactPostcode, Integer legacyPrefix) {
     }
 
     private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, UUID memberId) {
@@ -681,10 +806,12 @@ public class BoardItemService {
         return toDto(item, files, commentCount, liked, member);
     }
 
-    private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, Member member) {
-        String authorName = memberRepository.findById(item.getRegId())
-                .map(Member::getName)
-                .orElse("Unknown");
+    private BoardItemDto toDto(BoardItem item, List<BoardFile> files, int commentCount, boolean liked, Member viewer) {
+        Member author = memberRepository.findById(item.getRegId()).orElse(null);
+        String authorName = author != null && hasText(author.getName()) ? author.getName() : "Unknown";
+        String authorRegionName = RegionLabelFormatter.normalize(firstNonBlank(
+                item.getRegUserRegionName(),
+                author == null ? null : author.getRegionName()));
 
         Board board = boardRepository.findById(item.getBoSeq()).orElse(null);
         String boardTitle = board != null ? board.getBoTitle() : "";
@@ -702,20 +829,46 @@ public class BoardItemService {
                 .title(item.getTitle())
                 .content(item.getContent())
                 .category(item.getBiCategory())
+                .postScope(normalizePostScope(item.getLocationScope()))
                 .readCount(item.getReadCount())
                 .likeCount(item.getLikeCount())
                 .fixYn(item.getFixYn())
+                .placeName(item.getPlaceName())
+                .placeAddress(item.getPlaceAddress())
+                .placeLat(item.getPlaceLat())
+                .placeLng(item.getPlaceLng())
                 .regUserPostcode(item.getRegUserPostcode())
                 .regId(item.getRegId())
                 .regUserName(authorName)
+                .regUserRegionName(authorRegionName)
+                .regUserRegionDongLabel(RegionLabelFormatter.toDongLabel(authorRegionName))
+                .sameNeighborhood(RegionLabelFormatter.isSameNeighborhood(authorRegionName, viewer.getRegionName()))
                 .regDate(item.getRegDate())
                 .updateId(item.getUpdateId())
                 .updateDate(item.getUpdateDate())
                 .files(fileDtos)
                 .commentCount(commentCount)
                 .liked(liked)
-                .isAuthor(member.getId().equals(item.getRegId()) || "ADMIN".equals(member.getRole().name()))
+                .isAuthor(viewer.getId().equals(item.getRegId()) || "ADMIN".equals(viewer.getRole().name()))
                 .build();
+    }
+
+    private void attachLocationMetadata(List<BoardItemListDto> items, Member viewer) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        String viewerRegionName = viewer == null ? null : viewer.getRegionName();
+        for (BoardItemListDto item : items) {
+            if (item == null) {
+                continue;
+            }
+            item.setPostScope(normalizePostScope(item.getPostScope()));
+            String normalizedRegionName = RegionLabelFormatter.normalize(item.getRegUserRegionName());
+            item.setRegUserRegionName(normalizedRegionName);
+            item.setRegUserRegionDongLabel(RegionLabelFormatter.toDongLabel(normalizedRegionName));
+            item.setSameNeighborhood(RegionLabelFormatter.isSameNeighborhood(normalizedRegionName, viewerRegionName));
+        }
     }
 
     private void attachThumbnailUrls(List<BoardItemListDto> items) {
@@ -793,9 +946,26 @@ public class BoardItemService {
             return null;
         }
         String normalized = category.trim().toLowerCase(Locale.ROOT);
-        if (!Set.of("qna", "daily", "tip").contains(normalized)) {
+        // "육아광장" & "동네생활" & legacy categories
+        if (!Set.of(
+                "qna", "daily", "tip", "hospital", "urgent", // legacy
+                "local_info", "local_review", "local_gathering", "local_share", // neighbor new
+                "item_review", "info_share" // all new
+        ).contains(normalized)) {
             throw new BoardException(BoardErrorCode.ITEM_CATEGORY_INVALID);
         }
         return normalized;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

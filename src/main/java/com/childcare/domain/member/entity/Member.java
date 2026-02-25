@@ -74,6 +74,13 @@ public class Member {
     @Column(name = "region_code", length = 20)
     private String regionCode;
 
+    @Column(name = "parenting_stage", length = 50)
+    private String parentingStage;
+
+    @Column(name = "is_honor_neighbor")
+    @Builder.Default
+    private Boolean isHonorNeighbor = false;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

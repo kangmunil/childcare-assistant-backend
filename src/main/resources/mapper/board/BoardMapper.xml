@@ -7,14 +7,21 @@
         <result property="title" column="title"/>
         <result property="content" column="content"/>
         <result property="category" column="bi_category"/>
+        <result property="postScope" column="location_scope"/>
         <result property="readCount" column="read_count"/>
         <result property="likeCount" column="like_count"/>
         <result property="commentCount" column="comment_count"/>
         <result property="fixYn" column="fix_yn"/>
         <result property="liked" column="liked"/>
+        <result property="placeName" column="place_name"/>
+        <result property="placeAddress" column="place_address"/>
+        <result property="placeLat" column="place_lat"/>
+        <result property="placeLng" column="place_lng"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regUserName" column="reg_user_name"/>
         <result property="regUserRegionName" column="reg_user_region_name"/>
+        <result property="regUserParentingStage" column="reg_user_parenting_stage"/>
+        <result property="regUserHonorNeighbor" column="reg_user_honor_neighbor"/>
         <result property="regDate" column="reg_date"/>
         <result property="hasFile" column="has_file"/>
         <result property="boardSlug" column="board_slug"/>
@@ -28,30 +35,62 @@
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
     </sql>
 
+    <sql id="effectiveItemRegionCode">
+        COALESCE(
+            NULLIF(BTRIM(i.reg_user_region_code), ''),
+            NULLIF(BTRIM(m.region_code), '')
+        )
+    </sql>
+
+    <sql id="effectiveItemPostcode">
+        COALESCE(
+            i.reg_user_postcode,
+            CASE
+                WHEN NULLIF(REGEXP_REPLACE(COALESCE(m.postcode, ''), '[^0-9]', '', 'g'), '') IS NULL THEN NULL
+                WHEN LENGTH(REGEXP_REPLACE(COALESCE(m.postcode, ''), '[^0-9]', '', 'g')) >= 5 THEN
+                    CAST(SUBSTRING(REGEXP_REPLACE(COALESCE(m.postcode, ''), '[^0-9]', '', 'g') FROM 1 FOR 5) AS INTEGER)
+                ELSE
+                    CAST(REGEXP_REPLACE(COALESCE(m.postcode, ''), '[^0-9]', '', 'g') AS INTEGER)
+            END
+        )
+    </sql>
+
     <sql id="wherePostcode">
-        <if test="postcode != null">
+        <if test="(regionCode != null and regionCode != '') or postcode != null">
             AND (
                 <choose>
                     <when test="regionCode != null and regionCode != ''">
-                        i.reg_user_region_code = #{regionCode}
+                        (<include refid="effectiveItemRegionCode"/>) = #{regionCode}
                         OR (
-                            i.reg_user_region_code IS NULL
+                            (<include refid="effectiveItemRegionCode"/>) IS NULL
                             AND (
-                                i.reg_user_postcode = #{postcode}
+                                (<include refid="effectiveItemPostcode"/>) = #{postcode}
                                 <if test="postcodePrefix != null">
-                                    OR (i.reg_user_postcode &lt; 1000 AND i.reg_user_postcode = #{postcodePrefix})
+                                    OR (
+                                        (<include refid="effectiveItemPostcode"/>) &lt; 1000
+                                        AND (<include refid="effectiveItemPostcode"/>) = #{postcodePrefix}
+                                    )
                                 </if>
                             )
                         )
                     </when>
                     <otherwise>
-                        i.reg_user_postcode = #{postcode}
+                        (<include refid="effectiveItemPostcode"/>) = #{postcode}
                         <if test="postcodePrefix != null">
-                            OR (i.reg_user_postcode &lt; 1000 AND i.reg_user_postcode = #{postcodePrefix})
+                            OR (
+                                (<include refid="effectiveItemPostcode"/>) &lt; 1000
+                                AND (<include refid="effectiveItemPostcode"/>) = #{postcodePrefix}
+                            )
                         </if>
                     </otherwise>
                 </choose>
             )
+        </if>
+    </sql>
+
+    <sql id="whereLocationScope">
+        <if test="locationScope != null and locationScope != ''">
+            AND i.location_scope = #{locationScope}
         </if>
     </sql>
 
@@ -88,13 +127,20 @@
             i.title,
             i.content,
             i.bi_category,
+            i.location_scope,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
             i.fix_yn,
+            i.place_name,
+            i.place_address,
+            i.place_lat,
+            i.place_lng,
             i.reg_id,
             m.name AS reg_user_name,
-            m.region_name AS reg_user_region_name,
+            COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
+            m.parenting_stage AS reg_user_parenting_stage,
+            m.is_honor_neighbor AS reg_user_honor_neighbor,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -103,6 +149,7 @@
             CASE WHEN EXISTS (SELECT 1 FROM board_file bf WHERE bf.bi_seq = i.bi_seq) THEN true ELSE false END AS has_file
         <include refid="FromboardItem"/>
         <include refid="wherePostcode"/>
+        <include refid="whereLocationScope"/>
         <include refid="whereCategory"/>
         <include refid="searchCondition"/>
         ORDER BY i.reg_date DESC
@@ -114,6 +161,7 @@
         SELECT COUNT(*)
         <include refid="FromboardItem"/>
         <include refid="wherePostcode"/>
+        <include refid="whereLocationScope"/>
         <include refid="whereCategory"/>
         <include refid="searchCondition"/>
     </select>
@@ -131,6 +179,8 @@
         <result property="deleteYn" column="delete_yn"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regUserName" column="reg_user_name"/>
+        <result property="regUserParentingStage" column="reg_user_parenting_stage"/>
+        <result property="regUserHonorNeighbor" column="reg_user_honor_neighbor"/>
         <result property="regDate" column="reg_date"/>
         <result property="updateId" column="update_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="updateDate" column="update_date"/>
@@ -151,6 +201,8 @@
             c.delete_yn,
             c.reg_id,
             m.name AS reg_user_name,
+            m.parenting_stage AS reg_user_parenting_stage,
+            m.is_honor_neighbor AS reg_user_honor_neighbor,
             c.reg_date,
             c.update_id,
             c.update_date,
@@ -188,13 +240,20 @@
             i.title,
             i.content,
             i.bi_category,
+            i.location_scope,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
             i.fix_yn,
+            i.place_name,
+            i.place_address,
+            i.place_lat,
+            i.place_lng,
             i.reg_id,
             m.name AS reg_user_name,
-            m.region_name AS reg_user_region_name,
+            COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
+            m.parenting_stage AS reg_user_parenting_stage,
+            m.is_honor_neighbor AS reg_user_honor_neighbor,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -207,6 +266,7 @@
           AND i.fix_yn = 'Y'
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
         <include refid="wherePostcode"/>
+        <include refid="whereLocationScope"/>
         <if test="category != null and category != ''">
           AND i.bi_category = #{category}
         </if>
@@ -220,13 +280,20 @@
             i.title,
             i.content,
             i.bi_category,
+            i.location_scope,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
             i.fix_yn,
+            i.place_name,
+            i.place_address,
+            i.place_lat,
+            i.place_lng,
             i.reg_id,
             m.name AS reg_user_name,
-            m.region_name AS reg_user_region_name,
+            COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
+            m.parenting_stage AS reg_user_parenting_stage,
+            m.is_honor_neighbor AS reg_user_honor_neighbor,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -239,6 +306,7 @@
           AND i.fix_yn IS NULL
           AND (i.delete_yn IS NULL OR i.delete_yn != 'Y')
         <include refid="wherePostcode"/>
+        <include refid="whereLocationScope"/>
         <if test="category != null and category != ''">
           AND i.bi_category = #{category}
         </if>
@@ -253,13 +321,20 @@
             i.title,
             i.content,
             i.bi_category,
+            i.location_scope,
             COALESCE(i.read_count, 0) AS read_count,
             COALESCE(i.like_count, 0) AS like_count,
             (SELECT COUNT(*) FROM board_comment bc WHERE bc.bi_seq = i.bi_seq AND (bc.delete_yn IS NULL OR bc.delete_yn != 'Y')) AS comment_count,
             i.fix_yn,
+            i.place_name,
+            i.place_address,
+            i.place_lat,
+            i.place_lng,
             i.reg_id,
             m.name AS reg_user_name,
-            m.region_name AS reg_user_region_name,
+            COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
+            m.parenting_stage AS reg_user_parenting_stage,
+            m.is_honor_neighbor AS reg_user_honor_neighbor,
             i.reg_date,
             CASE WHEN EXISTS (
                 SELECT 1 FROM board_item_like bil
@@ -278,7 +353,7 @@
           AND (
               COALESCE(b.bo_neighbor_yn, 'N') != 'Y'
               <if test="postcode != null">
-                  OR i.reg_user_postcode = #{postcode}
+                  OR (<include refid="effectiveItemPostcode"/>) = #{postcode}
               </if>
           )
         <if test="keyword != null and keyword != ''">
@@ -315,7 +390,7 @@
           AND (
               COALESCE(b.bo_neighbor_yn, 'N') != 'Y'
               <if test="postcode != null">
-                  OR i.reg_user_postcode = #{postcode}
+                  OR (<include refid="effectiveItemPostcode"/>) = #{postcode}
               </if>
           )
         <if test="keyword != null and keyword != ''">

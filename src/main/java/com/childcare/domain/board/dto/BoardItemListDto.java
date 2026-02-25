@@ -17,16 +17,27 @@ public class BoardItemListDto {
     private String title;
     private String content;
     private String category;
+    private String postScope;
     private Integer readCount;
     private Integer likeCount;
     private Integer commentCount;
     private String fixYn;
     private boolean liked;
 
+    // 장소(병원/기관) 정보 추가
+    private String placeName;
+    private String placeAddress;
+    private Double placeLat;
+    private Double placeLng;
+
     // 작성자 정보
     private UUID regId;
     private String regUserName;
     private String regUserRegionName;
+    private String regUserRegionDongLabel;
+    private String regUserParentingStage;
+    private Boolean regUserHonorNeighbor;
+    private boolean sameNeighborhood;
     private LocalDateTime regDate;
 
     // 첨부파일 여부

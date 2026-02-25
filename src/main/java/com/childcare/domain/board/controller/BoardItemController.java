@@ -38,6 +38,7 @@ public class BoardItemController {
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String locationScope,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) Boolean includeHighlights) {
@@ -48,6 +49,7 @@ public class BoardItemController {
                 .searchType(searchType)
                 .keyword(keyword)
                 .category(category)
+                .locationScope(locationScope)
                 .page(page)
                 .size(size)
                 .includeHighlights(includeHighlights)
@@ -67,6 +69,7 @@ public class BoardItemController {
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String locationScope,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) Boolean includeHighlights) {
@@ -77,6 +80,7 @@ public class BoardItemController {
                 .searchType(searchType)
                 .keyword(keyword)
                 .category(category)
+                .locationScope(locationScope)
                 .page(page)
                 .size(size)
                 .includeHighlights(includeHighlights)

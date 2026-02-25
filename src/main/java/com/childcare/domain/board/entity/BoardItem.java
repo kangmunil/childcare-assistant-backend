@@ -43,11 +43,29 @@ public class BoardItem {
     @Column(name = "fix_yn", length = 1)
     private String fixYn;
 
+    @Column(name = "location_scope", length = 20)
+    private String locationScope;
+
+    @Column(name = "place_name", length = 100)
+    private String placeName;
+
+    @Column(name = "place_address", length = 200)
+    private String placeAddress;
+
+    @Column(name = "place_lat", columnDefinition = "numeric(15,10)")
+    private Double placeLat;
+
+    @Column(name = "place_lng", columnDefinition = "numeric(15,10)")
+    private Double placeLng;
+
     @Column(name = "reg_user_postcode")
     private Integer regUserPostcode;
 
     @Column(name = "reg_user_region_code", length = 20)
     private String regUserRegionCode;
+
+    @Column(name = "reg_user_region_name", length = 100)
+    private String regUserRegionName;
 
     @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
     private UUID regId;

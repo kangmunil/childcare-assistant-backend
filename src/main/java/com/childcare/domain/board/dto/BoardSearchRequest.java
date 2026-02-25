@@ -16,6 +16,7 @@ public class BoardSearchRequest {
     private Integer page;        // 페이지 번호 (0부터 시작)
     private Integer size;        // 페이지 크기 (기본값: 20)
     private Boolean includeHighlights; // 고정글/인기글 포함 여부 (기본값: true)
+    private String locationScope; // all, neighbor
 
     public int getPage() {
         return page == null || page < 0 ? 0 : page;
@@ -27,5 +28,17 @@ public class BoardSearchRequest {
 
     public boolean isIncludeHighlights() {
         return includeHighlights == null || includeHighlights;
+    }
+
+    public String getLocationScope() {
+        if (locationScope == null || locationScope.isBlank()) {
+            return "all";
+        }
+        String normalized = locationScope.trim().toLowerCase();
+        return "neighbor".equals(normalized) ? "neighbor" : "all";
+    }
+
+    public boolean isNeighborLocationScope() {
+        return "neighbor".equals(getLocationScope());
     }
 }
