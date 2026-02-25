@@ -16,6 +16,7 @@ import java.util.UUID;
 public class BoardItemDto {
     private Long id;
     private Long boardId;
+    private String boardSlug;
     private String boardTitle;
     private String title;
     private String content;

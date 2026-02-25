@@ -314,6 +314,58 @@ public class BoardCommentService {
         return unlikeComment(memberId, board.getBoSeq(), itemId, commentId);
     }
 
+    /**
+     * 댓글 고정
+     */
+    @Transactional
+    public ApiResponse<Void> pinComment(UUID memberId, Long boardId, Long itemId, Long commentId) {
+        Board board = validateBoard(boardId);
+        Member member = getMember(memberId);
+        validateWritePermission(board, member);
+        validateItemInBoard(boardId, itemId);
+        BoardComment comment = validateComment(commentId);
+
+        comment.setFixYn("Y");
+        boardCommentRepository.save(comment);
+
+        return ApiResponse.success("댓글 고정 성공", null);
+    }
+
+    /**
+     * 댓글 고정 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Void> pinCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return pinComment(memberId, board.getBoSeq(), itemId, commentId);
+    }
+
+    /**
+     * 댓글 고정 해제
+     */
+    @Transactional
+    public ApiResponse<Void> unpinComment(UUID memberId, Long boardId, Long itemId, Long commentId) {
+        Board board = validateBoard(boardId);
+        Member member = getMember(memberId);
+        validateWritePermission(board, member);
+        validateItemInBoard(boardId, itemId);
+        BoardComment comment = validateComment(commentId);
+
+        comment.setFixYn(null);
+        boardCommentRepository.save(comment);
+
+        return ApiResponse.success("댓글 고정 해제 성공", null);
+    }
+
+    /**
+     * 댓글 고정 해제 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<Void> unpinCommentBySlug(UUID memberId, String slug, Long itemId, Long commentId) {
+        Board board = validateBoardBySlug(slug.toLowerCase(Locale.ROOT));
+        return unpinComment(memberId, board.getBoSeq(), itemId, commentId);
+    }
+
     // ========== Private Methods ==========
 
     private Board validateBoard(Long boardId) {
@@ -460,7 +512,6 @@ public class BoardCommentService {
                 .liked(liked)
                 .isAuthor(comment.getRegId().equals(memberId))
                 .accessible(canAccess)
-                .deleted(isDeleted)
                 .build();
     }
 
@@ -509,7 +560,6 @@ public class BoardCommentService {
                 .liked(comment.isLiked())
                 .isAuthor(comment.getRegId().equals(memberId))
                 .accessible(canAccess)
-                .deleted(isDeleted)
                 .build();
     }
 }

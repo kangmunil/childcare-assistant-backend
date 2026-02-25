@@ -51,4 +51,20 @@ public interface BoardMapper {
             @Param("category") String category,
             @Param("memberId") UUID memberId
     );
+
+    // 전체 게시글 조회 (게시판 구분 없이)
+    List<BoardItemListDto> searchAllItems(
+            @Param("memberId") UUID memberId,
+            @Param("postcode") Integer postcode,
+            @Param("searchType") String searchType,
+            @Param("keyword") String keyword,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
+    int countAllItems(
+            @Param("postcode") Integer postcode,
+            @Param("searchType") String searchType,
+            @Param("keyword") String keyword
+    );
 }
