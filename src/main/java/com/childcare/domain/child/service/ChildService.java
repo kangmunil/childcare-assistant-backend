@@ -13,6 +13,7 @@ import com.childcare.domain.member.entity.Member;
 import com.childcare.domain.member.repository.MemberRepository;
 import com.childcare.domain.parent.entity.Parent;
 import com.childcare.domain.parent.repository.ParentRepository;
+import com.childcare.domain.profile.service.ChildProfileService;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.exception.ChildException;
 import com.childcare.global.exception.ChildException.ChildErrorCode;
@@ -40,8 +41,9 @@ public class ChildService {
     private final MemberRepository memberRepository;
     private final ChildMapper childMapper;
     private final SupabaseStorageService storageService;
+    private final ChildProfileService childProfileService;
 
-    @Value("${supabase.storage.child-image-bucket}")
+    @Value("${supabase.storage.child-image-bucket:${supabase.storage.bucket:board-files}}")
     private String childImageBucket;
 
     public ApiResponse<List<ChildDto>> getChildrenByMemberId(UUID memberId) {
@@ -117,6 +119,7 @@ public class ChildService {
                 .build();
 
         parentRepository.save(parent);
+        childProfileService.initializeProfileAndSummary(savedChild.getChSeq(), memberId);
 
         return ApiResponse.success("자녀 등록 성공", List.of(toDto(savedChild, memberId)));
     }
@@ -145,6 +148,7 @@ public class ChildService {
         child.setMemo(request.getMemo());
 
         Child updatedChild = childRepository.save(child);
+        childProfileService.refreshSummaryForChild(updatedChild.getChSeq());
 
         return ApiResponse.success("자녀 정보 수정 성공", List.of(toDto(updatedChild, memberId)));
     }

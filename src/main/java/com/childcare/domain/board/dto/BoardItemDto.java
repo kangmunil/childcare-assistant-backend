@@ -21,14 +21,24 @@ public class BoardItemDto {
     private String title;
     private String content;
     private String category;
+    private String postScope;
     private Integer readCount;
     private Integer likeCount;
     private String fixYn;
     private Integer regUserPostcode;
 
+    // 장소(병원/기관) 정보 추가
+    private String placeName;
+    private String placeAddress;
+    private Double placeLat;
+    private Double placeLng;
+
     // 작성자 정보
     private UUID regId;
     private String regUserName;
+    private String regUserRegionName;
+    private String regUserRegionDongLabel;
+    private boolean sameNeighborhood;
     private LocalDateTime regDate;
 
     // 수정 정보

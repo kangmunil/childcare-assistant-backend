@@ -29,6 +29,8 @@ public class BoardCommentListDto {
     // 작성자 정보
     private UUID regId;
     private String regUserName;
+    private String regUserParentingStage;
+    private Boolean regUserHonorNeighbor;
     private LocalDateTime regDate;
 
     // 수정 정보

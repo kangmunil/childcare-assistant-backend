@@ -38,8 +38,10 @@ public class BoardItemController {
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String locationScope,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Boolean includeHighlights) {
         UUID memberId = getMemberId();
         log.info("Get item list for board: {}, member: {}", boardId, memberId);
 
@@ -47,8 +49,10 @@ public class BoardItemController {
                 .searchType(searchType)
                 .keyword(keyword)
                 .category(category)
+                .locationScope(locationScope)
                 .page(page)
                 .size(size)
+                .includeHighlights(includeHighlights)
                 .build();
 
         ApiResponse<Map<String, Object>> response = boardItemService.getItemList(memberId, boardId, searchRequest);
@@ -65,8 +69,10 @@ public class BoardItemController {
             @RequestParam(required = false) String searchType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String locationScope,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Boolean includeHighlights) {
         UUID memberId = getMemberId();
         String normalizedSlug = normalizeSlug(slug);
 
@@ -74,8 +80,10 @@ public class BoardItemController {
                 .searchType(searchType)
                 .keyword(keyword)
                 .category(category)
+                .locationScope(locationScope)
                 .page(page)
                 .size(size)
+                .includeHighlights(includeHighlights)
                 .build();
 
         ApiResponse<Map<String, Object>> response = boardItemService.getItemListBySlug(memberId, normalizedSlug,

@@ -11,6 +11,8 @@ public interface GrowthHistoryMapper {
 
     Optional<ChildGrowHistory> findActiveHistoryById(@Param("childId") Long childId, @Param("historyId") Long historyId);
 
+    Optional<ChildGrowHistory> findLatestActiveHistoryByChildId(@Param("childId") Long childId);
+
     void insertHistory(ChildGrowHistory history);
 
     int updateHistory(@Param("childId") Long childId, @Param("historyId") Long historyId,

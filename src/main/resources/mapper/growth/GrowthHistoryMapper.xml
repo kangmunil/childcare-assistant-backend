@@ -25,6 +25,23 @@
         ]]>
     </select>
 
+    <select id="findLatestActiveHistoryByChildId" resultMap="growthHistoryResultMap">
+        <![CDATA[
+        SELECT *
+        FROM child_grow_history
+        WHERE ch_seq = #{childId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ORDER BY 
+            CASE
+                WHEN gh_date IS NULL OR TRIM(gh_date) = '' OR gh_date !~ '^\\d{4}-\\d{2}-\\d{2}$' THEN NULL
+                ELSE TO_DATE(gh_date, 'YYYY-MM-DD')
+            END DESC NULLS LAST,
+            reg_date DESC,
+            gh_seq DESC
+        LIMIT 1
+        ]]>
+    </select>
+
     <insert id="insertHistory" parameterType="com.childcare.domain.growth.entity.ChildGrowHistory" useGeneratedKeys="true" keyProperty="ghSeq" keyColumn="gh_seq">
         INSERT INTO child_grow_history (ch_seq, height, weight, gh_date, reg_id, reg_date, delete_yn)
         VALUES (#{chSeq}, #{height}, #{weight}, #{ghDate}, #{regId, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid, NOW(), 'N')

@@ -49,6 +49,7 @@ public class BoardCommentService {
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         // MyBatis로 댓글 목록 조회 (작성자명, 공감여부 포함)
         List<BoardCommentListDto> comments = boardMapper.getComments(itemId, memberId);
@@ -83,6 +84,7 @@ public class BoardCommentService {
         // 작성 권한 검증
         Member member = getMember(memberId);
         validateWritePermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         // 필수값 검증
         validateCommentRequest(request);
@@ -96,8 +98,7 @@ public class BoardCommentService {
         Integer depth = 0;
         Long parentSeq = null;
         if (request.getParentSeq() != null) {
-            BoardComment parentComment = boardCommentRepository.findById(request.getParentSeq())
-                    .orElseThrow(() -> new BoardException(BoardErrorCode.COMMENT_NOT_FOUND));
+            BoardComment parentComment = validateCommentInItem(request.getParentSeq(), itemId);
 
             // depth 제한 (대댓글까지만 허용, depth > 0인 댓글에는 답글 불가)
             if (parentComment.getDepth() != null && parentComment.getDepth() > 0) {
@@ -136,7 +137,7 @@ public class BoardCommentService {
 
         BoardComment savedComment = boardCommentRepository.save(comment);
 
-        BoardCommentDto dto = toDto(savedComment, memberId, item.getRegId(), Collections.emptyList());
+        BoardCommentDto dto = toDto(savedComment, member, memberId, item.getRegId(), Collections.<BoardCommentDto>emptyList());
 
         return ApiResponse.success("댓글 작성 성공", dto);
     }
@@ -160,11 +161,12 @@ public class BoardCommentService {
         // 게시판 및 게시글 조회
         Board board = validateBoard(boardId);
         BoardItem item = validateItemInBoard(boardId, itemId);
-        BoardComment comment = validateComment(commentId);
+        BoardComment comment = validateCommentInItem(commentId, itemId);
 
         // 수정 권한 검증
         Member member = getMember(memberId);
         validateModifyPermission(board, member, comment.getRegId());
+        validateNeighborAccess(board, member, item);
 
         // 필수값 검증
         validateCommentRequest(request);
@@ -187,7 +189,7 @@ public class BoardCommentService {
 
         BoardComment savedComment = boardCommentRepository.save(comment);
 
-        BoardCommentDto dto = toDto(savedComment, memberId, item.getRegId(), Collections.emptyList());
+        BoardCommentDto dto = toDto(savedComment, member, memberId, item.getRegId(), Collections.<BoardCommentDto>emptyList());
 
         return ApiResponse.success("댓글 수정 성공", dto);
     }
@@ -210,12 +212,13 @@ public class BoardCommentService {
 
         // 게시판 및 댓글 조회
         Board board = validateBoard(boardId);
-        validateItemInBoard(boardId, itemId);
-        BoardComment comment = validateComment(commentId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
+        BoardComment comment = validateCommentInItem(commentId, itemId);
 
         // 삭제 권한 검증
         Member member = getMember(memberId);
         validateDeletePermission(board, member, comment.getRegId());
+        validateNeighborAccess(board, member, item);
 
         // 댓글 소프트 삭제
         comment.setDeleteYn("Y");
@@ -244,9 +247,13 @@ public class BoardCommentService {
         log.info("Like comment: {} for member: {}", commentId, memberId);
 
         // 게시판 및 댓글 조회
-        validateBoard(boardId);
-        validateItemInBoard(boardId, itemId);
-        BoardComment comment = validateComment(commentId);
+        Board board = validateBoard(boardId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
+        BoardComment comment = validateCommentInItem(commentId, itemId);
+
+        Member member = getMember(memberId);
+        validateReadPermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         // 이미 공감했는지 확인
         if (boardCommentLikeRepository.existsByBcSeqAndMbId(commentId, memberId)) {
@@ -286,9 +293,13 @@ public class BoardCommentService {
         log.info("Unlike comment: {} for member: {}", commentId, memberId);
 
         // 게시판 및 댓글 조회
-        validateBoard(boardId);
-        validateItemInBoard(boardId, itemId);
-        BoardComment comment = validateComment(commentId);
+        Board board = validateBoard(boardId);
+        BoardItem item = validateItemInBoard(boardId, itemId);
+        BoardComment comment = validateCommentInItem(commentId, itemId);
+
+        Member member = getMember(memberId);
+        validateReadPermission(board, member);
+        validateNeighborAccess(board, member, item);
 
         // 공감했는지 확인
         BoardCommentLike like = boardCommentLikeRepository.findByBcSeqAndMbId(commentId, memberId)
@@ -380,7 +391,8 @@ public class BoardCommentService {
 
     private Board validateBoardBySlug(String slug) {
         Board board = boardRepository.findByBoSlug(slug)
-                .orElseThrow(() -> new BoardException(BoardErrorCode.BOARD_NOT_FOUND));
+                .orElseGet(() -> boardRepository.findByBoCode(slug.toUpperCase(Locale.ROOT))
+                        .orElseThrow(() -> new BoardException(BoardErrorCode.BOARD_NOT_FOUND)));
 
         if (!"Y".equals(board.getBoUseYn())) {
             throw new BoardException(BoardErrorCode.BOARD_NOT_AVAILABLE);
@@ -416,6 +428,14 @@ public class BoardCommentService {
         return comment;
     }
 
+    private BoardComment validateCommentInItem(Long commentId, Long itemId) {
+        BoardComment comment = validateComment(commentId);
+        if (!comment.getBiSeq().equals(itemId)) {
+            throw new BoardException(BoardErrorCode.COMMENT_NOT_FOUND);
+        }
+        return comment;
+    }
+
     private Member getMember(UUID memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BoardException(BoardErrorCode.READ_PERMISSION_DENIED));
@@ -430,6 +450,17 @@ public class BoardCommentService {
     private void validateWritePermission(Board board, Member member) {
         if ("ADMIN".equals(board.getBoWriteAuth()) && !"ADMIN".equals(member.getRole().name())) {
             throw new BoardException(BoardErrorCode.WRITE_PERMISSION_DENIED);
+        }
+    }
+
+    private void validateNeighborAccess(Board board, Member member, BoardItem item) {
+        if (!"Y".equals(board.getBoNeighborYn())) {
+            return;
+        }
+
+        NeighborPostcodeScope scope = resolveNeighborPostcodeScope(member);
+        if (!isNeighborMatched(item.getRegUserRegionCode(), item.getRegUserPostcode(), scope)) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_ACCESS_DENIED);
         }
     }
 
@@ -458,6 +489,14 @@ public class BoardCommentService {
         return memberId.equals(itemAuthorId) || memberId.equals(commentAuthorId);
     }
 
+    private boolean isAdmin(Member member) {
+        return "ADMIN".equals(member.getRole().name());
+    }
+
+    private boolean isAuthorOrAdmin(Member member, UUID authorId) {
+        return isAdmin(member) || member.getId().equals(authorId);
+    }
+
     private void validateCommentRequest(BoardCommentRequest request) {
         if (request.getContent() == null || request.getContent().isBlank()) {
             throw new BoardException(BoardErrorCode.COMMENT_CONTENT_REQUIRED);
@@ -468,13 +507,13 @@ public class BoardCommentService {
      * 대댓글용 toDto (replies 없음) - BoardComment 엔티티용
      */
     private BoardCommentDto toDto(BoardComment comment, UUID memberId, UUID itemAuthorId) {
-        return toDto(comment, memberId, itemAuthorId, Collections.emptyList());
+        return toDto(comment, null, memberId, itemAuthorId, Collections.emptyList());
     }
 
     /**
      * 부모 댓글용 toDto (replies 포함) - BoardComment 엔티티용
      */
-    private BoardCommentDto toDto(BoardComment comment, UUID memberId, UUID itemAuthorId, List<BoardCommentDto> replies) {
+    private BoardCommentDto toDto(BoardComment comment, Member member, UUID memberId, UUID itemAuthorId, List<BoardCommentDto> replies) {
         boolean isDeleted = "Y".equals(comment.getDeleteYn());
         boolean isSecret = "Y".equals(comment.getSecretYn());
         boolean canAccess = !isSecret || canAccessSecretComment(memberId, itemAuthorId, comment.getRegId());
@@ -487,7 +526,7 @@ public class BoardCommentService {
         // 삭제된 댓글 또는 비밀 댓글 접근 불가 시 내용 숨김
         String content = comment.getContent();
         if (isDeleted) {
-            content = "삭제된 댓글입니다.";
+            content = "작성자가 댓글을 삭제했습니다.";
             authorName = "";
         } else if (!canAccess) {
             content = "비밀 댓글입니다.";
@@ -510,7 +549,7 @@ public class BoardCommentService {
                 .updateDate(comment.getUpdateDate())
                 .replies(replies)
                 .liked(liked)
-                .isAuthor(comment.getRegId().equals(memberId))
+                .isAuthor(member != null ? isAuthorOrAdmin(member, comment.getRegId()) : comment.getRegId().equals(memberId))
                 .accessible(canAccess)
                 .build();
     }
@@ -519,13 +558,14 @@ public class BoardCommentService {
      * 대댓글용 toDto (replies 없음) - MyBatis DTO용
      */
     private BoardCommentDto toDto(BoardCommentListDto comment, UUID memberId, UUID itemAuthorId) {
-        return toDto(comment, memberId, itemAuthorId, Collections.emptyList());
+        return toDto(comment, null, memberId, itemAuthorId, Collections.emptyList());
     }
 
     /**
      * 부모 댓글용 toDto (replies 포함) - MyBatis DTO용
      */
-    private BoardCommentDto toDto(BoardCommentListDto comment, UUID memberId, UUID itemAuthorId, List<BoardCommentDto> replies) {
+    private BoardCommentDto toDto(BoardCommentListDto comment, Member member, UUID memberId, UUID itemAuthorId,
+            List<BoardCommentDto> replies) {
         boolean isDeleted = "Y".equals(comment.getDeleteYn());
         boolean isSecret = "Y".equals(comment.getSecretYn());
         boolean canAccess = !isSecret || canAccessSecretComment(memberId, itemAuthorId, comment.getRegId());
@@ -535,7 +575,7 @@ public class BoardCommentService {
         // 삭제된 댓글 또는 비밀 댓글 접근 불가 시 내용 숨김
         String content = comment.getContent();
         if (isDeleted) {
-            content = "삭제된 댓글입니다.";
+            content = "작성자가 댓글을 삭제했습니다.";
             authorName = "";
         } else if (!canAccess) {
             content = "비밀 댓글입니다.";
@@ -558,8 +598,68 @@ public class BoardCommentService {
                 .updateDate(comment.getUpdateDate())
                 .replies(replies)
                 .liked(comment.isLiked())
-                .isAuthor(comment.getRegId().equals(memberId))
+                .isAuthor(member != null ? isAuthorOrAdmin(member, comment.getRegId()) : comment.getRegId().equals(memberId))
                 .accessible(canAccess)
                 .build();
+    }
+
+    private NeighborPostcodeScope resolveNeighborPostcodeScope(Member member) {
+        if (member.getPostcode() == null || member.getPostcode().isBlank()) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+
+        String normalizedRegionCode = normalizeRegionCode(member.getRegionCode());
+        String digitsOnly = member.getPostcode().replaceAll("\\D", "");
+        if (digitsOnly.length() < 3) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+
+        try {
+            String exactRaw = digitsOnly.length() >= 5 ? digitsOnly.substring(0, 5) : digitsOnly;
+            String prefixRaw = digitsOnly.substring(0, 3);
+
+            int exactPostcode = Integer.parseInt(exactRaw);
+            int legacyPrefix = Integer.parseInt(prefixRaw);
+            return new NeighborPostcodeScope(normalizedRegionCode, exactPostcode, legacyPrefix);
+        } catch (NumberFormatException e) {
+            throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
+        }
+    }
+
+    private boolean isNeighborMatched(String itemRegionCode, Integer itemPostcode, NeighborPostcodeScope scope) {
+        if (scope == null) {
+            return false;
+        }
+
+        String normalizedItemRegionCode = normalizeRegionCode(itemRegionCode);
+        if (hasText(scope.regionCode()) && hasText(normalizedItemRegionCode)) {
+            return scope.regionCode().equals(normalizedItemRegionCode);
+        }
+
+        if (itemPostcode == null) {
+            return false;
+        }
+
+        if (itemPostcode.equals(scope.exactPostcode())) {
+            return true;
+        }
+
+        // Legacy data compatibility: historical posts may have 3-digit prefix only.
+        return itemPostcode < 1000 && itemPostcode.equals(scope.legacyPrefix());
+    }
+
+    private String normalizeRegionCode(String regionCode) {
+        if (regionCode == null) {
+            return null;
+        }
+        String normalized = regionCode.trim();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record NeighborPostcodeScope(String regionCode, int exactPostcode, int legacyPrefix) {
     }
 }
