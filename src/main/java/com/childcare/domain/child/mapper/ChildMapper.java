@@ -24,4 +24,8 @@ public interface ChildMapper {
             @Param("periodType") String periodType,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
+
+    void clearPrimaryByMemberId(@Param("memberId") UUID memberId);
+
+    void setPrimary(@Param("childId") Long childId);
 }

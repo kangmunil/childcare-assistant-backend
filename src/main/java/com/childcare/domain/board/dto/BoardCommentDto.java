@@ -46,7 +46,4 @@ public class BoardCommentDto {
 
     // 비밀댓글 접근 가능 여부
     private boolean accessible;
-
-    // 삭제된 댓글인 경우 표시용
-    private boolean deleted;
 }
