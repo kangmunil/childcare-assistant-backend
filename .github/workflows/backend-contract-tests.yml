@@ -41,5 +41,6 @@ jobs:
           ./gradlew test \
             --tests com.childcare.domain.ai.controller.AiControllerTest \
             --tests com.childcare.domain.board.controller.BoardItemControllerTest \
+            --tests com.childcare.domain.board.service.BoardItemServicePocTest \
             --tests com.childcare.domain.board.controller.BoardCommentControllerTest \
             --tests com.childcare.domain.board.controller.BoardFileControllerTest
