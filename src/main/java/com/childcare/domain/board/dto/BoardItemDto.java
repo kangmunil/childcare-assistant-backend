@@ -32,6 +32,8 @@ public class BoardItemDto {
     private String placeAddress;
     private Double placeLat;
     private Double placeLng;
+    private boolean urgentResolved;
+    private LocalDateTime urgentResolvedDate;
 
     // 작성자 정보
     private UUID regId;

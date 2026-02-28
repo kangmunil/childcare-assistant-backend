@@ -17,6 +17,8 @@
         <result property="placeAddress" column="place_address"/>
         <result property="placeLat" column="place_lat"/>
         <result property="placeLng" column="place_lng"/>
+        <result property="urgentResolved" column="urgent_resolved"/>
+        <result property="urgentResolvedDate" column="urgent_resolved_date"/>
         <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
         <result property="regUserName" column="reg_user_name"/>
         <result property="regUserRegionName" column="reg_user_region_name"/>
@@ -120,6 +122,24 @@
         </if>
     </sql>
 
+    <sql id="orderBySort">
+        <choose>
+            <when test="sort == 'popular'">
+                ORDER BY
+                    (
+                        COALESCE(i.like_count, 0) * 3
+                        + (SELECT COUNT(*) FROM board_comment bc_pop
+                           WHERE bc_pop.bi_seq = i.bi_seq AND (bc_pop.delete_yn IS NULL OR bc_pop.delete_yn != 'Y')) * 2
+                        + COALESCE(i.read_count, 0)
+                    ) DESC,
+                    i.reg_date DESC
+            </when>
+            <otherwise>
+                ORDER BY i.reg_date DESC
+            </otherwise>
+        </choose>
+    </sql>
+
     <!-- 게시글 검색 -->
     <select id="searchItems" resultMap="boardItemListResultMap">
         SELECT
@@ -136,6 +156,8 @@
             i.place_address,
             i.place_lat,
             i.place_lng,
+            CASE WHEN COALESCE(i.urgent_resolved_yn, 'N') = 'Y' THEN true ELSE false END AS urgent_resolved,
+            i.urgent_resolved_date,
             i.reg_id,
             m.name AS reg_user_name,
             COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
@@ -152,7 +174,7 @@
         <include refid="whereLocationScope"/>
         <include refid="whereCategory"/>
         <include refid="searchCondition"/>
-        ORDER BY i.reg_date DESC
+        <include refid="orderBySort"/>
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -252,6 +274,8 @@
             i.place_address,
             i.place_lat,
             i.place_lng,
+            CASE WHEN COALESCE(i.urgent_resolved_yn, 'N') = 'Y' THEN true ELSE false END AS urgent_resolved,
+            i.urgent_resolved_date,
             i.reg_id,
             m.name AS reg_user_name,
             COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
@@ -292,6 +316,8 @@
             i.place_address,
             i.place_lat,
             i.place_lng,
+            CASE WHEN COALESCE(i.urgent_resolved_yn, 'N') = 'Y' THEN true ELSE false END AS urgent_resolved,
+            i.urgent_resolved_date,
             i.reg_id,
             m.name AS reg_user_name,
             COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,
@@ -333,6 +359,8 @@
             i.place_address,
             i.place_lat,
             i.place_lng,
+            CASE WHEN COALESCE(i.urgent_resolved_yn, 'N') = 'Y' THEN true ELSE false END AS urgent_resolved,
+            i.urgent_resolved_date,
             i.reg_id,
             m.name AS reg_user_name,
             COALESCE(i.reg_user_region_name, m.region_name) AS reg_user_region_name,

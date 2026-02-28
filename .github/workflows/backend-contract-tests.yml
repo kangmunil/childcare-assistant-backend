@@ -1,0 +1,45 @@
+name: Backend Contract Tests
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle/**"
+      - "gradlew"
+      - ".github/workflows/backend-contract-tests.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle/**"
+      - "gradlew"
+      - ".github/workflows/backend-contract-tests.yml"
+
+jobs:
+  contract-tests:
+    name: contract-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Run API contract test suite
+        run: |
+          ./gradlew test \
+            --tests com.childcare.domain.ai.controller.AiControllerTest \
+            --tests com.childcare.domain.board.controller.BoardItemControllerTest \
+            --tests com.childcare.domain.board.controller.BoardCommentControllerTest \
+            --tests com.childcare.domain.board.controller.BoardFileControllerTest

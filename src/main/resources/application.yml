@@ -68,6 +68,10 @@ file:
 ai:
   service-url: ${AI_SERVICE_URL:http://localhost:8000}
   internal-token: ${AI_INTERNAL_TOKEN:}
+  chat-timeout-seconds: ${AI_CHAT_TIMEOUT_SECONDS:120}
+  chat-meta:
+    enabled: ${AI_CHAT_META_ENABLED:false}
+    rollout-percent: ${AI_CHAT_META_ROLLOUT_PERCENT:0}
 
 kakao:
   rest-api-key: ${KAKAO_REST_API_KEY:}

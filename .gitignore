@@ -38,6 +38,10 @@ out/
 
 ### Project Docs (local only) ###
 docs/
+!docs/
+docs/*
+!docs/ai-chat-meta-rollout-checklist.md
+!docs/ai-chat-meta-qa-report-template.md
 !src/test/resources/docs/
 
 ### Logs ###

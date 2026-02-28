@@ -2,6 +2,7 @@ package com.childcare.domain.ai.controller;
 
 import com.childcare.domain.ai.dto.AiChatRequest;
 import com.childcare.domain.ai.dto.AiChatResponse;
+import com.childcare.domain.ai.dto.AiChatFeedbackRequest;
 import com.childcare.domain.ai.service.AiService;
 import com.childcare.global.dto.ApiResponse;
 import com.childcare.global.exception.AiException;
@@ -63,5 +64,28 @@ public class AiController {
         return ResponseEntity.ok()
                 .header("X-Request-Id", traceId)
                 .body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/chat/feedback")
+    public ResponseEntity<ApiResponse<Void>> submitChatFeedback(
+            @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+            @Valid @RequestBody AiChatFeedbackRequest request,
+            BindingResult bindingResult
+    ) {
+        if (bindingResult.hasErrors()) {
+            String message = bindingResult.getFieldErrors().stream()
+                    .findFirst()
+                    .map(error -> error.getDefaultMessage() == null ? "잘못된 요청입니다." : error.getDefaultMessage())
+                    .orElse("잘못된 요청입니다.");
+            throw new AiException(AiException.AiErrorCode.BAD_REQUEST, message);
+        }
+
+        String traceId = StringUtils.hasText(requestId) ? requestId : UUID.randomUUID().toString();
+        UUID memberId = SecurityUtil.getCurrentMemberId();
+        aiService.recordChatFeedback(request, memberId, traceId);
+
+        return ResponseEntity.ok()
+                .header("X-Request-Id", traceId)
+                .body(ApiResponse.success("피드백이 접수되었습니다.", null));
     }
 }

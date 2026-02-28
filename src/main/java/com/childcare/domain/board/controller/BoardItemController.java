@@ -2,6 +2,7 @@ package com.childcare.domain.board.controller;
 
 import com.childcare.domain.board.dto.BoardItemDto;
 import com.childcare.domain.board.dto.BoardItemRequest;
+import com.childcare.domain.board.dto.BoardUrgentResolveRequest;
 import com.childcare.domain.board.dto.BoardSearchRequest;
 import com.childcare.domain.board.service.BoardItemService;
 import com.childcare.global.dto.ApiResponse;
@@ -39,9 +40,11 @@ public class BoardItemController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String locationScope,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) Boolean includeHighlights) {
+            @RequestParam(required = false) Boolean includeHighlights,
+            @RequestParam(required = false) Boolean urgentSlot) {
         UUID memberId = getMemberId();
         log.info("Get item list for board: {}, member: {}", boardId, memberId);
 
@@ -50,9 +53,11 @@ public class BoardItemController {
                 .keyword(keyword)
                 .category(category)
                 .locationScope(locationScope)
+                .sort(sort)
                 .page(page)
                 .size(size)
                 .includeHighlights(includeHighlights)
+                .urgentSlot(urgentSlot)
                 .build();
 
         ApiResponse<Map<String, Object>> response = boardItemService.getItemList(memberId, boardId, searchRequest);
@@ -70,9 +75,11 @@ public class BoardItemController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String locationScope,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) Boolean includeHighlights) {
+            @RequestParam(required = false) Boolean includeHighlights,
+            @RequestParam(required = false) Boolean urgentSlot) {
         UUID memberId = getMemberId();
         String normalizedSlug = normalizeSlug(slug);
 
@@ -81,9 +88,11 @@ public class BoardItemController {
                 .keyword(keyword)
                 .category(category)
                 .locationScope(locationScope)
+                .sort(sort)
                 .page(page)
                 .size(size)
                 .includeHighlights(includeHighlights)
+                .urgentSlot(urgentSlot)
                 .build();
 
         ApiResponse<Map<String, Object>> response = boardItemService.getItemListBySlug(memberId, normalizedSlug,
@@ -179,6 +188,36 @@ public class BoardItemController {
         UUID memberId = getMemberId();
 
         ApiResponse<BoardItemDto> response = boardItemService.updateItemBySlug(memberId, normalizedSlug, itemId,
+                request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 긴급/SOS 해결 처리
+     * PUT /boards/{boardId}/items/{itemId}/urgent-resolve
+     */
+    @PutMapping("/{boardId:\\d+}/items/{itemId}/urgent-resolve")
+    public ResponseEntity<ApiResponse<BoardItemDto>> resolveUrgentItem(
+            @PathVariable Long boardId,
+            @PathVariable Long itemId,
+            @RequestBody(required = false) BoardUrgentResolveRequest request) {
+        UUID memberId = getMemberId();
+        ApiResponse<BoardItemDto> response = boardItemService.resolveUrgentItem(memberId, boardId, itemId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 긴급/SOS 해결 처리 (slug 기반)
+     * PUT /boards/{slug}/items/{itemId}/urgent-resolve
+     */
+    @PutMapping("/{slug:(?!\\d+$)(?!items$)[a-z0-9-]+}/items/{itemId}/urgent-resolve")
+    public ResponseEntity<ApiResponse<BoardItemDto>> resolveUrgentItemBySlug(
+            @PathVariable @Pattern(regexp = "^[a-z0-9-]+$") @Size(min = 2, max = 50) String slug,
+            @PathVariable Long itemId,
+            @RequestBody(required = false) BoardUrgentResolveRequest request) {
+        UUID memberId = getMemberId();
+        String normalizedSlug = normalizeSlug(slug);
+        ApiResponse<BoardItemDto> response = boardItemService.resolveUrgentItemBySlug(memberId, normalizedSlug, itemId,
                 request);
         return ResponseEntity.ok(response);
     }

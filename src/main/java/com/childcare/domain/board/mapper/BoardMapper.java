@@ -22,6 +22,7 @@ public interface BoardMapper {
                         @Param("searchType") String searchType,
                         @Param("keyword") String keyword,
                         @Param("locationScope") String locationScope,
+                        @Param("sort") String sort,
                         @Param("offset") int offset,
                         @Param("limit") int limit);
 

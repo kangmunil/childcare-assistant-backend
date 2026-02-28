@@ -29,6 +29,8 @@ public class BoardItemListDto {
     private String placeAddress;
     private Double placeLat;
     private Double placeLng;
+    private boolean urgentResolved;
+    private LocalDateTime urgentResolvedDate;
 
     // 작성자 정보
     private UUID regId;
@@ -43,6 +45,12 @@ public class BoardItemListDto {
     // 첨부파일 여부
     private boolean hasFile;
     private String thumbnailUrl;
+    private String thumbnailAvifUrl;
+    private String thumbnailWebpUrl;
+    private String thumbnailJpegUrl;
+    private String thumbnailPngUrl;
+    private Integer thumbnailWidth;
+    private Integer thumbnailHeight;
 
     // 인기글 여부 (조회수+공감수 상위 3건)
     private boolean isPopular;

@@ -24,6 +24,9 @@ public class BoardException extends RuntimeException {
         ITEM_TITLE_REQUIRED("BOARD_026", "제목은 필수 입력값입니다."),
         ITEM_CONTENT_REQUIRED("BOARD_027", "내용은 필수 입력값입니다."),
         ITEM_CATEGORY_INVALID("BOARD_030", "유효하지 않은 카테고리입니다."),
+        ITEM_PLACE_REQUIRED("BOARD_031", "동네후기 게시글에는 장소 선택이 필요합니다."),
+        ITEM_SCOPE_CATEGORY_INVALID("BOARD_032", "게시 범위에 맞지 않는 카테고리입니다."),
+        ITEM_URGENT_RESOLVE_INVALID("BOARD_033", "긴급/SOS 게시글만 해결 처리할 수 있습니다."),
 
         // 댓글 관련
         COMMENT_NOT_FOUND("BOARD_005", "댓글을 찾을 수 없습니다."),

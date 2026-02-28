@@ -11,6 +11,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -35,9 +36,20 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final UUID DEFAULT_DEV_BYPASS_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String DEFAULT_DEV_BYPASS_EMAIL = "dev-e2e@local.test";
+    private static final String DEFAULT_DEV_BYPASS_NAME = "개발 테스트 사용자";
+    private static final String DEFAULT_DEV_BYPASS_REGION_NAME = "서울시 강남구 역삼동";
+    private static final String DEFAULT_DEV_BYPASS_REGION_CODE = "1168010100";
+    private static final String DEFAULT_DEV_BYPASS_POSTCODE = "06236";
+
     private final JwtUtil jwtUtil;
     private final MemberRepository memberRepository;
     private final InviteCodeGenerator inviteCodeGenerator;
+    @Value("${auth.dev-bypass-token:}")
+    private String devBypassToken;
+    @Value("${auth.dev-bypass-user-id:}")
+    private String devBypassUserId;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
@@ -52,7 +64,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String token = getTokenFromRequest(request);
-            if (token != null && jwtUtil.validateToken(token)) {
+            if (isDevBypassToken(token)) {
+                authenticateWithDevBypassToken();
+            } else if (token != null && jwtUtil.validateToken(token)) {
                 UUID userId = jwtUtil.getUserIdFromToken(token);
                 String email = jwtUtil.getEmailFromToken(token);
                 String path = request.getRequestURI();
@@ -92,6 +106,70 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isDevBypassToken(String token) {
+        return StringUtils.hasText(devBypassToken) && devBypassToken.equals(token);
+    }
+
+    private void authenticateWithDevBypassToken() {
+        UUID userId = resolveDevBypassUserId();
+        ensureDevBypassMember(userId);
+        List<SimpleGrantedAuthority> authorities =
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + Role.USER.name()));
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(userId, null, authorities);
+        authentication.setDetails(DEFAULT_DEV_BYPASS_EMAIL);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private UUID resolveDevBypassUserId() {
+        if (!StringUtils.hasText(devBypassUserId)) {
+            return DEFAULT_DEV_BYPASS_USER_ID;
+        }
+        try {
+            return UUID.fromString(devBypassUserId.trim());
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid auth.dev-bypass-user-id, fallback to default: " + devBypassUserId, e);
+            return DEFAULT_DEV_BYPASS_USER_ID;
+        }
+    }
+
+    private void ensureDevBypassMember(UUID userId) {
+        Member member = memberRepository.findById(userId)
+                .orElseGet(() -> memberRepository.saveAndFlush(Member.builder()
+                        .id(userId)
+                        .name(DEFAULT_DEV_BYPASS_NAME)
+                        .email(DEFAULT_DEV_BYPASS_EMAIL)
+                        .regionName(DEFAULT_DEV_BYPASS_REGION_NAME)
+                        .regionCode(DEFAULT_DEV_BYPASS_REGION_CODE)
+                        .postcode(DEFAULT_DEV_BYPASS_POSTCODE)
+                        .role(Role.USER)
+                        .inviteCode(inviteCodeGenerator.generate())
+                        .provider("DEV")
+                        .build()));
+
+        boolean needsUpdate = false;
+        if (!StringUtils.hasText(member.getRegionName())) {
+            member.setRegionName(DEFAULT_DEV_BYPASS_REGION_NAME);
+            needsUpdate = true;
+        }
+        if (!StringUtils.hasText(member.getRegionCode())) {
+            member.setRegionCode(DEFAULT_DEV_BYPASS_REGION_CODE);
+            needsUpdate = true;
+        }
+        if (!StringUtils.hasText(member.getPostcode())) {
+            member.setPostcode(DEFAULT_DEV_BYPASS_POSTCODE);
+            needsUpdate = true;
+        }
+        if (member.getRole() == null) {
+            member.setRole(Role.USER);
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            memberRepository.saveAndFlush(member);
+        }
     }
 
     /**
