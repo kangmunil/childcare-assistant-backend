@@ -213,6 +213,8 @@
         FROM board_comment c
         LEFT JOIN member m ON c.reg_id = m.id
         WHERE c.bi_seq = #{itemId}
+          /* 삭제된 댓글도 항상 표시 */
+          /*
           AND (
               (c.delete_yn IS NULL OR c.delete_yn != 'Y')
               OR (
@@ -226,6 +228,7 @@
                   )
               )
           )
+          */
         ORDER BY
             CASE WHEN c.fix_yn = 'Y' AND c.parent_seq IS NULL THEN 0 ELSE 1 END,
             COALESCE(c.parent_seq, c.bc_seq),
