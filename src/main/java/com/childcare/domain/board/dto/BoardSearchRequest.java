@@ -17,6 +17,8 @@ public class BoardSearchRequest {
     private Integer size;        // 페이지 크기 (기본값: 20)
     private Boolean includeHighlights; // 고정글/인기글 포함 여부 (기본값: true)
     private String locationScope; // all, neighbor
+    private String sort; // latest, popular
+    private Boolean urgentSlot; // community urgent slot query flag
 
     public int getPage() {
         return page == null || page < 0 ? 0 : page;
@@ -40,5 +42,20 @@ public class BoardSearchRequest {
 
     public boolean isNeighborLocationScope() {
         return "neighbor".equals(getLocationScope());
+    }
+
+    public String getSort() {
+        if (sort == null || sort.isBlank()) {
+            return "latest";
+        }
+        String normalized = sort.trim().toLowerCase();
+        if ("popular".equals(normalized) || "recommended".equals(normalized)) {
+            return "popular";
+        }
+        return "latest";
+    }
+
+    public boolean isUrgentSlot() {
+        return urgentSlot != null && urgentSlot;
     }
 }

@@ -67,6 +67,12 @@ public class BoardItem {
     @Column(name = "reg_user_region_name", length = 100)
     private String regUserRegionName;
 
+    @Column(name = "urgent_resolved_yn", length = 1)
+    private String urgentResolvedYn;
+
+    @Column(name = "urgent_resolved_date")
+    private LocalDateTime urgentResolvedDate;
+
     @Column(name = "reg_id", nullable = false, columnDefinition = "uuid")
     private UUID regId;
 

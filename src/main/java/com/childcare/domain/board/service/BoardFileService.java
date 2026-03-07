@@ -37,19 +37,22 @@ public class BoardFileService {
     private final BoardFileRepository boardFileRepository;
     private final MemberRepository memberRepository;
     private final SupabaseStorageService storageService;
+    private final BoardImageOptimizationService boardImageOptimizationService;
 
     public BoardFileService(
             BoardRepository boardRepository,
             BoardItemRepository boardItemRepository,
             BoardFileRepository boardFileRepository,
             MemberRepository memberRepository,
-            SupabaseStorageService storageService
+            SupabaseStorageService storageService,
+            BoardImageOptimizationService boardImageOptimizationService
     ) {
         this.boardRepository = boardRepository;
         this.boardItemRepository = boardItemRepository;
         this.boardFileRepository = boardFileRepository;
         this.memberRepository = memberRepository;
         this.storageService = storageService;
+        this.boardImageOptimizationService = boardImageOptimizationService;
     }
 
     // 기본 허용 확장자
@@ -87,6 +90,7 @@ public class BoardFileService {
         if (existingFiles.size() + files.size() > maxFileCount) {
             throw new BoardException(BoardErrorCode.FILE_COUNT_EXCEEDED);
         }
+        boolean communityBoard = boardImageOptimizationService.isCommunityBoard(board);
 
         // 허용 확장자 목록
         List<String> allowedExtensions = parseAllowedExtensions(board.getBoFileExtension());
@@ -109,12 +113,20 @@ public class BoardFileService {
             // 확장자 검증
             String originalFilename = file.getOriginalFilename();
             String extension = getFileExtension(originalFilename);
-            if (!allowedExtensions.contains(extension.toLowerCase())) {
+            String normalizedExtension = extension == null ? "" : extension.toLowerCase();
+            if (communityBoard) {
+                if (!boardImageOptimizationService.isCommunityUploadImageExtensionAllowed(normalizedExtension)) {
+                    throw new BoardException(BoardErrorCode.FILE_EXTENSION_NOT_ALLOWED);
+                }
+                if (!boardImageOptimizationService.isCommunityUploadImageMimeAllowed(file.getContentType())) {
+                    throw new BoardException(BoardErrorCode.FILE_EXTENSION_NOT_ALLOWED);
+                }
+            } else if (!allowedExtensions.contains(normalizedExtension)) {
                 throw new BoardException(BoardErrorCode.FILE_EXTENSION_NOT_ALLOWED);
             }
 
             // 파일 저장
-            BoardFileDto savedFile = saveFile(file, itemId, memberId, board.getBoCode());
+            BoardFileDto savedFile = saveFile(board, file, itemId, memberId);
             uploadedFiles.add(savedFile);
         }
 
@@ -215,9 +227,10 @@ public class BoardFileService {
                 .orElseThrow(() -> new BoardException(BoardErrorCode.FILE_NOT_FOUND));
     }
 
-    private BoardFileDto saveFile(MultipartFile file, Long itemId, UUID memberId, String boCode) {
+    private BoardFileDto saveFile(Board board, MultipartFile file, Long itemId, UUID memberId) {
         String originalFilename = file.getOriginalFilename();
         String extension = getFileExtension(originalFilename);
+        String boCode = board == null ? "BOARD" : board.getBoCode();
 
         // 저장 경로 생성 (board/{boCode}/yyyyMMdd/)
         String datePath = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -240,6 +253,12 @@ public class BoardFileService {
                 .build();
 
         BoardFile savedFile = boardFileRepository.save(boardFile);
+
+        try {
+            boardImageOptimizationService.enqueueOptimizationIfEligible(board, savedFile, file);
+        } catch (Exception e) {
+            log.warn("Failed to enqueue board image optimization job for file: {}", savedFile.getBfSeq(), e);
+        }
 
         return toDto(savedFile);
     }
@@ -348,7 +367,7 @@ public class BoardFileService {
         // 서명된 다운로드 URL 생성 (1시간 유효)
         String downloadUrl = storageService.getSignedUrl(file.getBfPath(), 3600);
 
-        return BoardFileDto.builder()
+        BoardFileDto dto = BoardFileDto.builder()
                 .id(file.getBfSeq())
                 .itemId(file.getBiSeq())
                 .orgFilename(file.getOrgFilename())
@@ -359,6 +378,8 @@ public class BoardFileService {
                 .regDate(file.getRegDate())
                 .downloadUrl(downloadUrl)
                 .build();
+        boardImageOptimizationService.applyOptimizationFields(dto, file);
+        return dto;
     }
 
     private NeighborPostcodeScope resolveNeighborPostcodeScope(Member member) {

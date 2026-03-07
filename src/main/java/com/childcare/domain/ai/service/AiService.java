@@ -1,6 +1,11 @@
 package com.childcare.domain.ai.service;
 
 import com.childcare.domain.ai.dto.AiChatRequest;
+import com.childcare.domain.ai.dto.AiChatClarification;
+import com.childcare.domain.ai.dto.AiChatCitation;
+import com.childcare.domain.ai.dto.AiChatFeedbackRequest;
+import com.childcare.domain.ai.dto.AiChatMeta;
+import com.childcare.domain.ai.dto.AiChatQuickAction;
 import com.childcare.domain.ai.dto.AiChatResponse;
 import com.childcare.domain.profile.service.ChildProfilePromptService;
 import com.childcare.global.exception.AiException;
@@ -17,6 +22,7 @@ import reactor.core.Exceptions;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +66,15 @@ public class AiService {
     private final ChildProfilePromptService childProfilePromptService;
     private final String aiInternalToken;
 
+    @Value("${ai.chat-meta.enabled:false}")
+    private boolean aiChatMetaEnabled = false;
+
+    @Value("${ai.chat-meta.rollout-percent:0}")
+    private int aiChatMetaRolloutPercent = 0;
+
+    @Value("${ai.chat-timeout-seconds:35}")
+    private int aiChatTimeoutSeconds = 35;
+
     public AiService(
             WebClient webClient,
             @Value("${ai.service-url}") String aiServiceUrl,
@@ -86,6 +101,24 @@ public class AiService {
 
         List<String> resolvedRequestedDomains = resolveRequestedProfileDomains(normalizedIntentHint, request.getMessage(), request.getRequestedProfileDomains());
         request.setRequestedProfileDomains(resolvedRequestedDomains);
+
+        logStructuredChatRequest(
+                requestId,
+                memberId,
+                request,
+                normalizedIntentHint,
+                resolvedRequestedDomains,
+                messageLength,
+                isManualMode,
+                hasManualContext
+        );
+
+        if (requiresSelectedChild(normalizedIntentHint, resolvedRequestedDomains) && request.getChildId() == null) {
+            AiChatResponse clarifyResponse = buildMissingChildClarifyResponse(request, requestId, normalizedIntentHint);
+            applyMetaExposurePolicy(clarifyResponse, memberId, requestId);
+            logStructuredChatResponse(requestId, memberId, clarifyResponse, 0L);
+            return clarifyResponse;
+        }
 
         boolean isGrowthIntent = "GROWTH_CHECK".equals(normalizedIntentHint);
 
@@ -121,8 +154,9 @@ public class AiService {
             log.warn("Growth context is empty. requestId={}, childId={}", requestId, request.getChildId());
         }
 
+        Duration aiChatTimeout = resolveAiChatTimeout();
         log.info(
-                "Forwarding AI chat request. requestId={}, childId={}, contextMode={}, intentHint={}, requestedProfileDomains={}, sessionId={}, messageLength={}, hasManualContext={}, hasResolvedProfileContext={}, hasGrowthContext={}",
+                "Forwarding AI chat request. requestId={}, childId={}, contextMode={}, intentHint={}, requestedProfileDomains={}, sessionId={}, messageLength={}, hasManualContext={}, hasResolvedProfileContext={}, hasGrowthContext={}, aiTimeoutSec={}",
                 requestId,
                 request.getChildId(),
                 contextMode,
@@ -132,7 +166,8 @@ public class AiService {
                 messageLength,
                 hasManualContext,
                 resolvedProfileContext.hasProfileContext(),
-                request.getGrowthContext() != null && !request.getGrowthContext().isEmpty()
+                request.getGrowthContext() != null && !request.getGrowthContext().isEmpty(),
+                aiChatTimeout.getSeconds()
         );
 
         boolean hasAiInternalToken = StringUtils.hasText(aiInternalToken);
@@ -150,11 +185,11 @@ public class AiService {
                 requestBuilder = requestBuilder.header(INTERNAL_SERVICE_TOKEN_HEADER, aiInternalToken);
             }
 
-            return requestBuilder
+            AiChatResponse response = requestBuilder
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(AiChatResponse.class)
-                    .timeout(Duration.ofSeconds(35))
+                    .timeout(aiChatTimeout)
                     .retryWhen(
                             Retry.backoff(2, Duration.ofMillis(500))
                                     .maxBackoff(Duration.ofSeconds(2))
@@ -169,10 +204,38 @@ public class AiService {
                     )
                     .onErrorMap(throwable -> mapToAiException(throwable, requestId))
                     .block();
+            applyMetaExposurePolicy(response, memberId, requestId);
+            logStructuredChatResponse(requestId, memberId, response, (System.nanoTime() - startedAt) / 1_000_000);
+            return response;
         } finally {
             long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
             log.info("AI chat request finished. requestId={}, elapsedMs={}", requestId, elapsedMs);
         }
+    }
+
+    private Duration resolveAiChatTimeout() {
+        // Guardrail: keep timeout in an operable window even when env is misconfigured.
+        int normalizedSeconds = Math.max(15, Math.min(180, aiChatTimeoutSeconds));
+        return Duration.ofSeconds(normalizedSeconds);
+    }
+
+    public void recordChatFeedback(AiChatFeedbackRequest request, UUID memberId, String requestId) {
+        String normalizedRating = request.getRating() == null ? null : request.getRating().trim().toUpperCase(Locale.ROOT);
+        String normalizedReasonCode = request.getReasonCode() == null ? null : request.getReasonCode().trim().toUpperCase(Locale.ROOT);
+        String normalizedResponseMode = request.getResponseMode() == null ? null : request.getResponseMode().trim().toUpperCase(Locale.ROOT);
+        String normalizedIntent = request.getIntent() == null ? null : request.getIntent().trim().toUpperCase(Locale.ROOT);
+
+        log.info(
+                "AI_CHAT_FEEDBACK request_id={} session_id={} member_id_hash={} rating={} reason_code={} response_mode={} intent={} is_first_ai_answer={}",
+                StringUtils.hasText(requestId) ? requestId : request.getRequestId(),
+                request.getSessionId(),
+                memberHash(memberId),
+                normalizedRating,
+                normalizedReasonCode,
+                normalizedResponseMode,
+                normalizedIntent,
+                request.getFirstAiAnswer()
+        );
     }
 
     private boolean isRetryable(Throwable throwable) {
@@ -186,6 +249,161 @@ public class AiService {
         }
 
         return false;
+    }
+
+    private void logStructuredChatRequest(
+            String requestId,
+            UUID memberId,
+            AiChatRequest request,
+            String intent,
+            List<String> requestedDomains,
+            int messageLength,
+            boolean isManualMode,
+            boolean hasManualContext
+    ) {
+        log.info(
+                "AI_CHAT_REQUEST request_id={} member_id_hash={} session_id={} child_id_present={} intent={} requested_domains={} context_mode={} has_manual_context={} message_length={}",
+                requestId,
+                memberHash(memberId),
+                request.getSessionId(),
+                request.getChildId() != null,
+                intent,
+                requestedDomains,
+                isManualMode ? "MANUAL" : "AUTO",
+                hasManualContext,
+                messageLength
+        );
+    }
+
+    private void logStructuredChatResponse(String requestId, UUID memberId, AiChatResponse response, long elapsedMs) {
+        AiChatMeta meta = response == null ? null : response.getMeta();
+        int citationCount = meta != null && meta.getCitations() != null ? meta.getCitations().size() : 0;
+        int quickActionCount = meta != null && meta.getQuickActions() != null ? meta.getQuickActions().size() : 0;
+        String responseMode = meta != null && StringUtils.hasText(meta.getResponseMode()) ? meta.getResponseMode() : "ANSWER";
+        String confidenceBucket = "none";
+        if (meta != null && meta.getConfidence() != null) {
+            double confidence = meta.getConfidence();
+            if (confidence >= 0.85d) {
+                confidenceBucket = "high";
+            } else if (confidence >= 0.65d) {
+                confidenceBucket = "medium";
+            } else {
+                confidenceBucket = "low";
+            }
+        }
+
+        log.info(
+                "AI_CHAT_RESPONSE request_id={} session_id={} member_id_hash={} response_mode={} intent={} elapsed_ms={} fallback_code={} citation_count={} quick_action_count={} confidence_bucket={} meta_exposed={}",
+                requestId,
+                response == null ? null : response.getSessionId(),
+                memberHash(memberId),
+                responseMode,
+                meta == null ? null : meta.getIntent(),
+                elapsedMs,
+                meta == null ? null : meta.getFallbackCode(),
+                citationCount,
+                quickActionCount,
+                confidenceBucket,
+                meta != null
+        );
+    }
+
+    private boolean requiresSelectedChild(String intentHint, List<String> requestedProfileDomains) {
+        String normalizedIntent = normalizeIntentHint(intentHint);
+        if ("GROWTH_CHECK".equals(normalizedIntent) || "MEDICAL".equals(normalizedIntent) || "ALLERGY".equals(normalizedIntent)) {
+            return true;
+        }
+        return false;
+    }
+
+    private AiChatResponse buildMissingChildClarifyResponse(AiChatRequest request, String requestId, String intentHint) {
+        String normalizedIntent = normalizeIntentHint(intentHint);
+        String reply = "성장/의료 관련 답변을 위해 먼저 상단 헤더에서 자녀를 선택해 주세요.";
+        if (!requiresSelectedChild(normalizedIntent, request.getRequestedProfileDomains())) {
+            reply = "먼저 상단 헤더에서 자녀를 선택해 주세요.";
+        } else if ("GROWTH_CHECK".equals(normalizedIntent)) {
+            reply = "성장 확인을 위해 먼저 상단 헤더에서 자녀를 선택해 주세요.";
+        }
+
+        AiChatMeta meta = AiChatMeta.builder()
+                .requestId(requestId)
+                .responseMode("CLARIFY")
+                .intent(StringUtils.hasText(normalizedIntent) ? normalizedIntent : "AUTO")
+                .clarification(
+                        AiChatClarification.builder()
+                                .question("어느 아이 기준으로 확인할까요?")
+                                .missingFields(List.of("child_selection"))
+                                .options(List.of(
+                                        buildNavigateAction("select_child", "자녀 선택하기", "/dashboard")
+                                ))
+                                .build()
+                )
+                .quickActions(List.of(
+                        buildNavigateAction("open_record", "성장 기록 화면 열기", "/record")
+                ))
+                .citations(List.of(
+                        AiChatCitation.builder()
+                                .label("입력 조건 확인")
+                                .sourceType("SYSTEM_POLICY")
+                                .note("자녀 선택이 필요한 질문입니다.")
+                                .build()
+                ))
+                .build();
+
+        return AiChatResponse.builder()
+                .reply(reply)
+                .sessionId(request.getSessionId())
+                .timestamp(OffsetDateTime.now().toString())
+                .meta(meta)
+                .build();
+    }
+
+    private AiChatQuickAction buildNavigateAction(String id, String label, String route) {
+        return AiChatQuickAction.builder()
+                .id(id)
+                .label(label)
+                .actionType("NAVIGATE")
+                .route(route)
+                .build();
+    }
+
+    private void applyMetaExposurePolicy(AiChatResponse response, UUID memberId, String requestId) {
+        if (response == null || response.getMeta() == null) {
+            return;
+        }
+
+        boolean exposeMeta = shouldExposeMetaToMember(memberId);
+        if (!exposeMeta) {
+            log.debug("AI chat meta hidden by rollout policy. requestId={}, memberIdHash={}", requestId, memberHash(memberId));
+            response.setMeta(null);
+        } else if (!StringUtils.hasText(response.getMeta().getRequestId())) {
+            response.getMeta().setRequestId(requestId);
+        }
+    }
+
+    private boolean shouldExposeMetaToMember(UUID memberId) {
+        if (!aiChatMetaEnabled) {
+            return false;
+        }
+        if (memberId == null) {
+            return false;
+        }
+        int rolloutPercent = Math.max(0, Math.min(100, aiChatMetaRolloutPercent));
+        if (rolloutPercent >= 100) {
+            return true;
+        }
+        if (rolloutPercent <= 0) {
+            return false;
+        }
+        int bucket = Math.floorMod(memberId.toString().hashCode(), 100);
+        return bucket < rolloutPercent;
+    }
+
+    private String memberHash(UUID memberId) {
+        if (memberId == null) {
+            return "none";
+        }
+        return Integer.toHexString(memberId.toString().hashCode());
     }
 
     private String normalizeIntentHint(String intentHint) {

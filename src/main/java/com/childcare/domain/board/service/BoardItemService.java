@@ -29,6 +29,13 @@ public class BoardItemService {
     private static final int SIGNED_URL_EXPIRE_SECONDS = 3600;
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg");
+    private static final Set<String> COMMUNITY_ALL_CATEGORIES = Set.of(
+            "tip", "qna", "item_review", "daily", "info_share");
+    private static final Set<String> COMMUNITY_NEIGHBOR_CATEGORIES = Set.of(
+            "urgent", "local_info", "local_review", "local_gathering", "local_share");
+    private static final String LEGACY_COMPAT_HOSPITAL_CATEGORY = "hospital";
+    private static final int COMMUNITY_URGENT_SLOT_WINDOW_HOURS = 2;
+    private static final int COMMUNITY_URGENT_SLOT_MAX_ITEMS = 1;
 
     private final BoardRepository boardRepository;
     private final BoardItemRepository boardItemRepository;
@@ -40,6 +47,7 @@ public class BoardItemService {
     private final ForbiddenWordChecker forbiddenWordChecker;
     private final BoardMapper boardMapper;
     private final SupabaseStorageService storageService;
+    private final BoardImageOptimizationService boardImageOptimizationService;
 
     /**
      * 게시글 목록 조회
@@ -130,6 +138,61 @@ public class BoardItemService {
         return updateItemInternal(memberId, board, itemId, request);
     }
 
+    /**
+     * 긴급/SOS 해결 처리 (boardId 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> resolveUrgentItem(UUID memberId, Long boardId, Long itemId,
+            BoardUrgentResolveRequest request) {
+        Board board = validateBoard(boardId);
+        return resolveUrgentItemInternal(memberId, board, itemId, request);
+    }
+
+    /**
+     * 긴급/SOS 해결 처리 (slug 기반)
+     */
+    @Transactional
+    public ApiResponse<BoardItemDto> resolveUrgentItemBySlug(UUID memberId, String slug, Long itemId,
+            BoardUrgentResolveRequest request) {
+        String normalizedSlug = slug.toLowerCase(Locale.ROOT);
+        Board board = validateBoardBySlug(normalizedSlug);
+        return resolveUrgentItemInternal(memberId, board, itemId, request);
+    }
+
+    private ApiResponse<BoardItemDto> resolveUrgentItemInternal(UUID memberId, Board board, Long itemId,
+            BoardUrgentResolveRequest request) {
+        BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
+        Member member = getMember(memberId);
+
+        if ("Y".equals(board.getBoNeighborYn())) {
+            validateNeighborAccess(board, member, item);
+        }
+        validateModifyPermission(board, member, item.getRegId());
+
+        if (!isCommunityBoard(board) || !"urgent".equals(normalizeCategory(item.getBiCategory()))) {
+            throw new BoardException(BoardErrorCode.ITEM_URGENT_RESOLVE_INVALID);
+        }
+
+        boolean nextResolved = request == null || request.isResolved();
+        boolean currentResolved = isResolvedFlag(item.getUrgentResolvedYn());
+        boolean changed = currentResolved != nextResolved;
+
+        if (changed) {
+            item.setUrgentResolvedYn(nextResolved ? "Y" : "N");
+            item.setUrgentResolvedDate(nextResolved ? LocalDateTime.now() : null);
+            item.setUpdateId(memberId);
+            item.setUpdateDate(LocalDateTime.now());
+            item = boardItemRepository.save(item);
+        }
+
+        List<BoardFile> files = boardFileRepository.findByBiSeq(itemId);
+        long commentCount = boardCommentRepository.countByBiSeqAndDeleteYnIsNull(itemId);
+        boolean liked = boardItemLikeRepository.existsByBiSeqAndMbId(itemId, memberId);
+
+        String message = nextResolved ? "긴급/SOS 해결 처리 완료" : "긴급/SOS 해결 해제 완료";
+        return ApiResponse.success(message, toDto(item, files, (int) commentCount, liked, memberId));
+    }
+
     private ApiResponse<BoardItemDto> updateItemInternal(UUID memberId, Board board, Long itemId,
             BoardItemRequest request) {
         BoardItem item = validateItemInBoard(board.getBoSeq(), itemId);
@@ -143,6 +206,7 @@ public class BoardItemService {
 
         // 필수값 검증
         validateItemRequest(request);
+        validateCommunityUpdateRules(board, item, request);
 
         // 금지어 검사
         if (forbiddenWordChecker.containsForbiddenWord(request.getTitle(), request.getContent())) {
@@ -155,13 +219,15 @@ public class BoardItemService {
         }
 
         // 게시글 수정
+        String normalizedCategory = normalizeCategory(request.getCategory());
         item.setTitle(request.getTitle());
         item.setContent(request.getContent());
-        item.setBiCategory(normalizeCategory(request.getCategory()));
+        item.setBiCategory(normalizedCategory);
         item.setPlaceName(request.getPlaceName());
         item.setPlaceAddress(request.getPlaceAddress());
         item.setPlaceLat(request.getPlaceLat());
         item.setPlaceLng(request.getPlaceLng());
+        syncUrgentResolvedStateForCategory(item, normalizedCategory);
         // 1차 정책: 수정 시 게시글 공개 범위(locationScope/postScope) 변경은 지원하지 않음.
         item.setUpdateId(memberId);
         item.setUpdateDate(LocalDateTime.now());
@@ -310,6 +376,10 @@ public class BoardItemService {
         boolean neighborBoard = isNeighborBoard(board);
         boolean communityBoard = isCommunityBoard(board);
         String postScope = normalizePostScope(resolveRequestedPostScope(request));
+        String normalizedCategory = normalizeCategory(request.getCategory());
+        if (communityBoard) {
+            validateCommunityWriteRules(board, request, postScope);
+        }
 
         // 동네 게시판/커뮤니티 글 작성 시 위치 정책 적용
         NeighborPostcodeScope postcodeScope = null;
@@ -343,11 +413,13 @@ public class BoardItemService {
                 .boSeq(board.getBoSeq())
                 .title(request.getTitle())
                 .content(request.getContent())
-                .biCategory(normalizeCategory(request.getCategory()))
+                .biCategory(normalizedCategory)
                 .placeName(request.getPlaceName())
                 .placeAddress(request.getPlaceAddress())
                 .placeLat(request.getPlaceLat())
                 .placeLng(request.getPlaceLng())
+                .urgentResolvedYn("N")
+                .urgentResolvedDate(null)
                 .readCount(0)
                 .likeCount(0)
                 .fixYn(fixYn)
@@ -543,6 +615,69 @@ public class BoardItemService {
         return "neighbor".equals(normalizePostScope(postScope));
     }
 
+    private void validateCommunityWriteRules(Board board, BoardItemRequest request, String postScope) {
+        if (!isCommunityBoard(board) || request == null) {
+            return;
+        }
+        String normalizedCategory = normalizeCategory(request.getCategory());
+        validateCommunityCategoryForPostScope(normalizedCategory, postScope);
+        if ("local_review".equals(normalizedCategory)) {
+            validateLocalReviewPlaceRequired(request);
+        }
+    }
+
+    private void validateCommunityUpdateRules(Board board, BoardItem item, BoardItemRequest request) {
+        if (!isCommunityBoard(board) || item == null || request == null) {
+            return;
+        }
+        String itemPostScope = normalizePostScope(item.getLocationScope());
+        String normalizedCategory = normalizeCategory(request.getCategory());
+        validateCommunityCategoryForPostScope(normalizedCategory, itemPostScope);
+        if ("local_review".equals(normalizedCategory)) {
+            validateLocalReviewPlaceRequired(request);
+        }
+    }
+
+    private void validateCommunityCategoryForPostScope(String category, String postScope) {
+        if (!hasText(category)) {
+            return;
+        }
+
+        String normalizedCategory = normalizeCategory(category);
+        if (LEGACY_COMPAT_HOSPITAL_CATEGORY.equals(normalizedCategory)) {
+            return;
+        }
+
+        boolean valid = isNeighborPostScope(postScope)
+                ? COMMUNITY_NEIGHBOR_CATEGORIES.contains(normalizedCategory)
+                : COMMUNITY_ALL_CATEGORIES.contains(normalizedCategory);
+
+        if (!valid) {
+            throw new BoardException(BoardErrorCode.ITEM_SCOPE_CATEGORY_INVALID);
+        }
+    }
+
+    private void validateLocalReviewPlaceRequired(BoardItemRequest request) {
+        if (!hasValidPlace(request.getPlaceName(), request.getPlaceAddress(), request.getPlaceLat(), request.getPlaceLng())) {
+            throw new BoardException(BoardErrorCode.ITEM_PLACE_REQUIRED);
+        }
+    }
+
+    private boolean hasValidPlace(String placeName, String placeAddress, Double placeLat, Double placeLng) {
+        return hasText(placeName)
+                && hasText(placeAddress)
+                && isValidLatitude(placeLat)
+                && isValidLongitude(placeLng);
+    }
+
+    private boolean isValidLatitude(Double value) {
+        return value != null && Double.isFinite(value) && value >= -90.0d && value <= 90.0d;
+    }
+
+    private boolean isValidLongitude(Double value) {
+        return value != null && Double.isFinite(value) && value >= -180.0d && value <= 180.0d;
+    }
+
     private NeighborPostcodeScope validateCommunityNeighborPostPermission(Member member) {
         if (!hasText(member.getRegionName())) {
             throw new BoardException(BoardErrorCode.NEIGHBOR_AUTH_REQUIRED);
@@ -680,10 +815,15 @@ public class BoardItemService {
         // 읽기 권한 검증
         Member member = getMember(memberId);
         validateReadPermission(board, member);
+        BoardSearchRequest normalizedRequest = searchRequest == null ? BoardSearchRequest.builder().build()
+                : searchRequest;
+
+        String category = normalizeCategory(normalizedRequest.getCategory());
+        boolean communityUrgentSlotRequest = isCommunityUrgentSlotRequest(board, normalizedRequest, category);
 
         // 동네 게시판 또는 커뮤니티의 내 동네 보기인 경우 위치 스코프 적용
         NeighborPostcodeScope postcodeScope = null;
-        if (shouldApplyLocationScopedFilter(board, searchRequest)) {
+        if (shouldApplyLocationScopedFilter(board, normalizedRequest)) {
             try {
                 postcodeScope = resolveNeighborPostcodeScope(member);
             } catch (BoardException e) {
@@ -691,6 +831,9 @@ public class BoardItemService {
                 // stale/missing.
                 if (isCommunityBoard(board)
                         && BoardErrorCode.NEIGHBOR_AUTH_REQUIRED.getCode().equals(e.getCode())) {
+                    if (communityUrgentSlotRequest) {
+                        return ApiResponse.success("게시글 목록 조회 성공", emptyItemListResult(normalizedRequest));
+                    }
                     log.info("Fallback to all-scope community list due to missing location for member: {}", memberId);
                 } else {
                     throw e;
@@ -698,7 +841,6 @@ public class BoardItemService {
             }
         }
 
-        String category = normalizeCategory(searchRequest.getCategory());
         Long boardId = board.getBoSeq();
         String regionCode = postcodeScope == null ? null : postcodeScope.regionCode();
         Integer postcode = postcodeScope == null ? null : postcodeScope.exactPostcode();
@@ -706,18 +848,19 @@ public class BoardItemService {
 
         List<BoardItemListDto> fixedDtos = Collections.emptyList();
         List<BoardItemListDto> popularDtos = Collections.emptyList();
+        List<BoardItemListDto> urgentDtos = Collections.emptyList();
 
-        if (searchRequest.isIncludeHighlights()) {
+        if (normalizedRequest.isIncludeHighlights()) {
             // 고정글 조회
             fixedDtos = boardMapper.getFixedItems(boardId, regionCode, postcode, postcodePrefix, category,
-                    searchRequest.getLocationScope(), memberId);
+                    normalizedRequest.getLocationScope(), memberId);
             attachThumbnailUrls(fixedDtos);
             attachLocationMetadata(fixedDtos, member);
             Set<Long> fixedIds = fixedDtos.stream().map(BoardItemListDto::getId).collect(Collectors.toSet());
 
             // 인기글 조회 (조회수+공감수 상위 3건, 고정글 제외)
             popularDtos = boardMapper.getPopularItems(boardId, regionCode, postcode, postcodePrefix, category,
-                    searchRequest.getLocationScope(),
+                    normalizedRequest.getLocationScope(),
                     memberId);
             attachThumbnailUrls(popularDtos);
             popularDtos = popularDtos.stream()
@@ -725,10 +868,34 @@ public class BoardItemService {
                     .peek(item -> item.setPopular(true))
                     .collect(Collectors.toList());
             attachLocationMetadata(popularDtos, member);
+
+            if (shouldIncludeCommunityUrgentHighlights(board, normalizedRequest, category)) {
+                urgentDtos = boardMapper.searchItems(
+                        boardId,
+                        regionCode,
+                        postcode,
+                        postcodePrefix,
+                        "urgent",
+                        memberId,
+                        "titleContent",
+                        null,
+                        normalizedRequest.getLocationScope(),
+                        "latest",
+                        0,
+                        3);
+                attachThumbnailUrls(urgentDtos);
+                attachLocationMetadata(urgentDtos, member);
+            }
         }
 
         // 일반글 조회
-        Map<String, Object> searchResult = searchItems(boardId, postcodeScope, searchRequest, category, memberId);
+        Map<String, Object> searchResult = searchItems(
+                boardId,
+                postcodeScope,
+                normalizedRequest,
+                category,
+                memberId,
+                communityUrgentSlotRequest);
         @SuppressWarnings("unchecked")
         List<BoardItemListDto> normalDtos = (List<BoardItemListDto>) searchResult.get("items");
         attachThumbnailUrls(normalDtos);
@@ -737,6 +904,7 @@ public class BoardItemService {
         Map<String, Object> result = new HashMap<>();
         result.put("fixedItems", fixedDtos);
         result.put("popularItems", popularDtos);
+        result.put("urgentItems", urgentDtos);
         result.put("items", normalDtos);
         result.put("totalElements", searchResult.get("totalElements"));
         result.put("totalPages", searchResult.get("totalPages"));
@@ -748,13 +916,17 @@ public class BoardItemService {
 
     private Map<String, Object> searchItems(Long boardId, NeighborPostcodeScope postcodeScope,
             BoardSearchRequest searchRequest,
-            String category, UUID memberId) {
+            String category, UUID memberId, boolean communityUrgentSlotRequest) {
         String keyword = searchRequest.getKeyword();
         String searchType = searchRequest.getSearchType();
         int page = searchRequest.getPage();
         int size = searchRequest.getSize();
         int offset = page * size;
         String locationScope = searchRequest.getLocationScope();
+        String effectiveCategory = communityUrgentSlotRequest ? "urgent" : category;
+        String sort = (communityUrgentSlotRequest || searchRequest.isNeighborLocationScope())
+                ? "latest"
+                : searchRequest.getSort();
 
         // searchType이 없으면 기본값 titleContent
         if (searchType == null || searchType.isBlank()) {
@@ -770,32 +942,98 @@ public class BoardItemService {
                 regionCode,
                 postcode,
                 postcodePrefix,
-                category,
+                effectiveCategory,
                 memberId,
                 searchType,
                 keyword,
                 locationScope,
+                sort,
                 offset,
                 size);
+
+        if (communityUrgentSlotRequest) {
+            List<BoardItemListDto> urgentSlotItems = filterCommunityUrgentSlotItems(
+                    items,
+                    LocalDateTime.now().minusHours(COMMUNITY_URGENT_SLOT_WINDOW_HOURS));
+            return buildSearchResult(urgentSlotItems, urgentSlotItems.size(), 0, COMMUNITY_URGENT_SLOT_MAX_ITEMS);
+        }
+
         int totalCount = boardMapper.countSearchItems(
                 boardId,
                 regionCode,
                 postcode,
                 postcodePrefix,
-                category,
+                effectiveCategory,
                 searchType,
                 keyword,
                 locationScope);
-        int totalPages = (int) Math.ceil((double) totalCount / size);
+        return buildSearchResult(items, totalCount, page, size);
+    }
+
+    private Map<String, Object> buildSearchResult(List<BoardItemListDto> items, int totalCount, int page, int size) {
+        List<BoardItemListDto> safeItems = items == null ? Collections.emptyList() : items;
+        int totalPages = size <= 0 ? 0 : (int) Math.ceil((double) totalCount / size);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("items", items);
+        result.put("items", safeItems);
         result.put("totalElements", totalCount);
         result.put("totalPages", totalPages);
         result.put("currentPage", page);
         result.put("size", size);
-
         return result;
+    }
+
+    private Map<String, Object> emptyItemListResult(BoardSearchRequest searchRequest) {
+        int page = searchRequest.isUrgentSlot() ? 0 : searchRequest.getPage();
+        int size = searchRequest.isUrgentSlot() ? COMMUNITY_URGENT_SLOT_MAX_ITEMS : searchRequest.getSize();
+        Map<String, Object> result = new HashMap<>();
+        result.put("fixedItems", Collections.emptyList());
+        result.put("popularItems", Collections.emptyList());
+        result.put("urgentItems", Collections.emptyList());
+        result.putAll(buildSearchResult(Collections.emptyList(), 0, page, size));
+        return result;
+    }
+
+    private List<BoardItemListDto> filterCommunityUrgentSlotItems(List<BoardItemListDto> items, LocalDateTime cutoff) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return items.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getCategory() != null && "urgent".equalsIgnoreCase(item.getCategory().trim()))
+                .filter(item -> !item.isUrgentResolved())
+                .filter(item -> item.getRegDate() != null && !item.getRegDate().isBefore(cutoff))
+                .sorted((left, right) -> right.getRegDate().compareTo(left.getRegDate()))
+                .limit(COMMUNITY_URGENT_SLOT_MAX_ITEMS)
+                .collect(Collectors.toList());
+    }
+
+    private boolean isCommunityUrgentSlotRequest(Board board, BoardSearchRequest searchRequest, String category) {
+        if (!isCommunityBoard(board) || searchRequest == null || !searchRequest.isUrgentSlot()) {
+            return false;
+        }
+        if (!searchRequest.isNeighborLocationScope()) {
+            return false;
+        }
+        if (category != null && !category.isBlank() && !"urgent".equals(category)) {
+            return false;
+        }
+        String keyword = searchRequest.getKeyword();
+        return keyword == null || keyword.isBlank();
+    }
+
+    private boolean shouldIncludeCommunityUrgentHighlights(Board board, BoardSearchRequest searchRequest, String category) {
+        if (!isCommunityBoard(board) || searchRequest == null) {
+            return false;
+        }
+        if (!searchRequest.isNeighborLocationScope()) {
+            return false;
+        }
+        if (category != null && !category.isBlank()) {
+            return false;
+        }
+        String keyword = searchRequest.getKeyword();
+        return keyword == null || keyword.isBlank();
     }
 
     private record NeighborPostcodeScope(String regionCode, Integer exactPostcode, Integer legacyPrefix) {
@@ -837,6 +1075,8 @@ public class BoardItemService {
                 .placeAddress(item.getPlaceAddress())
                 .placeLat(item.getPlaceLat())
                 .placeLng(item.getPlaceLng())
+                .urgentResolved(isResolvedFlag(item.getUrgentResolvedYn()))
+                .urgentResolvedDate(item.getUrgentResolvedDate())
                 .regUserPostcode(item.getRegUserPostcode())
                 .regId(item.getRegId())
                 .regUserName(authorName)
@@ -889,7 +1129,30 @@ public class BoardItemService {
         }
 
         List<BoardFile> files = boardFileRepository.findByBiSeqInOrderByRegDateAsc(itemIds);
+        Map<Long, String> optimizedThumbnailUrlByFileId = boardImageOptimizationService.getPreferredThumbnailUrlsByFileIds(
+                files.stream()
+                        .filter(Objects::nonNull)
+                        .filter(file -> isImageExtension(file.getBfExtension()))
+                        .map(BoardFile::getBfSeq)
+                        .filter(Objects::nonNull)
+                        .toList()
+        );
+        Map<Long, BoardFileDto.ImageVariantSet> optimizedThumbnailVariantByFileId = boardImageOptimizationService.getPreferredThumbnailVariantSetsByFileIds(
+                files.stream()
+                        .filter(Objects::nonNull)
+                        .filter(file -> isImageExtension(file.getBfExtension()))
+                        .map(BoardFile::getBfSeq)
+                        .filter(Objects::nonNull)
+                        .toList()
+        );
+        if (optimizedThumbnailUrlByFileId == null) {
+            optimizedThumbnailUrlByFileId = Collections.emptyMap();
+        }
+        if (optimizedThumbnailVariantByFileId == null) {
+            optimizedThumbnailVariantByFileId = Collections.emptyMap();
+        }
         Map<Long, String> thumbnailUrlByItemId = new HashMap<>();
+        Map<Long, BoardFileDto.ImageVariantSet> thumbnailVariantByItemId = new HashMap<>();
 
         for (BoardFile file : files) {
             Long itemId = file.getBiSeq();
@@ -899,13 +1162,48 @@ public class BoardItemService {
             if (!isImageExtension(file.getBfExtension())) {
                 continue;
             }
+            String optimizedThumbnailUrl = optimizedThumbnailUrlByFileId.get(file.getBfSeq());
+            if (optimizedThumbnailUrl != null) {
+                thumbnailUrlByItemId.put(itemId, optimizedThumbnailUrl);
+                BoardFileDto.ImageVariantSet optimizedVariantSet = optimizedThumbnailVariantByFileId.get(file.getBfSeq());
+                if (optimizedVariantSet != null) {
+                    thumbnailVariantByItemId.put(itemId, optimizedVariantSet);
+                }
+                continue;
+            }
             String signedUrl = getSignedUrl(file.getBfPath());
             if (signedUrl != null) {
                 thumbnailUrlByItemId.put(itemId, signedUrl);
             }
         }
 
-        items.forEach(item -> item.setThumbnailUrl(thumbnailUrlByItemId.get(item.getId())));
+        items.forEach(item -> {
+            item.setThumbnailUrl(thumbnailUrlByItemId.get(item.getId()));
+            applyThumbnailVariant(item, thumbnailVariantByItemId.get(item.getId()));
+        });
+    }
+
+    private void applyThumbnailVariant(BoardItemListDto item, BoardFileDto.ImageVariantSet variantSet) {
+        if (item == null) {
+            return;
+        }
+
+        if (variantSet == null) {
+            item.setThumbnailAvifUrl(null);
+            item.setThumbnailWebpUrl(null);
+            item.setThumbnailJpegUrl(null);
+            item.setThumbnailPngUrl(null);
+            item.setThumbnailWidth(null);
+            item.setThumbnailHeight(null);
+            return;
+        }
+
+        item.setThumbnailAvifUrl(variantSet.getAvifUrl());
+        item.setThumbnailWebpUrl(variantSet.getWebpUrl());
+        item.setThumbnailJpegUrl(variantSet.getJpegUrl());
+        item.setThumbnailPngUrl(variantSet.getPngUrl());
+        item.setThumbnailWidth(variantSet.getWidth());
+        item.setThumbnailHeight(variantSet.getHeight());
     }
 
     private boolean isImageExtension(String extension) {
@@ -928,7 +1226,7 @@ public class BoardItemService {
     }
 
     private BoardFileDto toFileDto(BoardFile file) {
-        return BoardFileDto.builder()
+        BoardFileDto dto = BoardFileDto.builder()
                 .id(file.getBfSeq())
                 .itemId(file.getBiSeq())
                 .orgFilename(file.getOrgFilename())
@@ -939,6 +1237,8 @@ public class BoardItemService {
                 .regDate(file.getRegDate())
                 .downloadUrl(getSignedUrl(file.getBfPath()))
                 .build();
+        boardImageOptimizationService.applyOptimizationFields(dto, file);
+        return dto;
     }
 
     private String normalizeCategory(String category) {
@@ -955,6 +1255,33 @@ public class BoardItemService {
             throw new BoardException(BoardErrorCode.ITEM_CATEGORY_INVALID);
         }
         return normalized;
+    }
+
+    private boolean isResolvedFlag(String urgentResolvedYn) {
+        return "Y".equalsIgnoreCase(firstNonBlank(urgentResolvedYn));
+    }
+
+    private void syncUrgentResolvedStateForCategory(BoardItem item, String normalizedCategory) {
+        if (item == null) {
+            return;
+        }
+
+        if (!"urgent".equals(normalizedCategory)) {
+            item.setUrgentResolvedYn("N");
+            item.setUrgentResolvedDate(null);
+            return;
+        }
+
+        if (isResolvedFlag(item.getUrgentResolvedYn())) {
+            item.setUrgentResolvedYn("Y");
+            if (item.getUrgentResolvedDate() == null) {
+                item.setUrgentResolvedDate(LocalDateTime.now());
+            }
+            return;
+        }
+
+        item.setUrgentResolvedYn("N");
+        item.setUrgentResolvedDate(null);
     }
 
     private String firstNonBlank(String... values) {

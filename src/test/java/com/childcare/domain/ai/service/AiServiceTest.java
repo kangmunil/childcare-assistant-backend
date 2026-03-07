@@ -1,6 +1,7 @@
 package com.childcare.domain.ai.service;
 
 import com.childcare.domain.ai.dto.AiChatRequest;
+import com.childcare.domain.ai.dto.AiChatMeta;
 import com.childcare.domain.ai.dto.AiChatResponse;
 import com.childcare.domain.profile.service.ChildProfilePromptService;
 import org.junit.jupiter.api.Test;
@@ -12,11 +13,15 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 import java.util.List;
 import java.util.UUID;
+import java.lang.reflect.Field;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,6 +30,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiServiceTest {
+
+    private static void setPrivateField(Object target, String fieldName, Object value) {
+        try {
+            Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Test
@@ -53,6 +68,7 @@ class AiServiceTest {
                         .reply("ok")
                         .sessionId("s1")
                         .timestamp("2026-02-15T12:00:00")
+                        .meta(AiChatMeta.builder().responseMode("ANSWER").intent("GROWTH_CHECK").build())
                         .build())
         );
 
@@ -79,6 +95,8 @@ class AiServiceTest {
                 "secure-token",
                 promptService
         );
+        setPrivateField(aiService, "aiChatMetaEnabled", true);
+        setPrivateField(aiService, "aiChatMetaRolloutPercent", 100);
 
         AiChatRequest request = AiChatRequest.builder()
                 .message("아이 성장발달 확인하고 싶어")
@@ -100,6 +118,8 @@ class AiServiceTest {
         assertEquals("history", payload.getGrowthContext().get("data_source"));
         assertEquals(List.of("growth"), payload.getRequestedProfileDomains());
         assertEquals("ok", response.getReply());
+        assertNotNull(response.getMeta());
+        assertEquals("ANSWER", response.getMeta().getResponseMode());
         verify(requestBodySpec, times(2)).header(anyString(), anyString());
         verify(requestBodySpec).header("X-Internal-Service-Token", "secure-token");
     }
@@ -161,7 +181,7 @@ class AiServiceTest {
         assertEquals("sleep", payload.getRequestedProfileDomains().get(0));
         assertEquals("routine", payload.getRequestedProfileDomains().get(1));
         assertEquals(2, payload.getRequestedProfileDomains().size());
-        assertEquals("AUTO", payload.getIntentHint());
+        assertEquals("ROUTINE", payload.getIntentHint());
         assertEquals("ok", response.getReply());
         assertEquals(null, payload.getGrowthContext());
     }
@@ -271,7 +291,7 @@ class AiServiceTest {
 
         verify(requestBodySpec).header("X-Request-Id", "req-3");
         verify(requestBodySpec, never()).header("X-Internal-Service-Token", "");
-        verify(requestBodySpec, never()).header("X-Internal-Service-Token", anyString());
+        verify(requestBodySpec, never()).header(eq("X-Internal-Service-Token"), anyString());
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -326,5 +346,80 @@ class AiServiceTest {
         verify(requestBodySpec).bodyValue(payloadCaptor.capture());
         assertEquals(4000, payloadCaptor.getValue().getProfileContext().length());
         assertEquals("위험:", payloadCaptor.getValue().getProfileContext().substring(0, 3));
+    }
+
+    @Test
+    void chatReturnsClarifyResponseWhenChildSelectionIsRequired() {
+        WebClient webClient = mock(WebClient.class);
+        WebClient.Builder builder = mock(WebClient.Builder.class);
+        ChildProfilePromptService promptService = mock(ChildProfilePromptService.class);
+
+        when(webClient.mutate()).thenReturn(builder);
+        when(builder.baseUrl(anyString())).thenReturn(builder);
+        when(builder.build()).thenReturn(webClient);
+
+        AiService aiService = new AiService(webClient, "http://localhost:8000", "", promptService);
+        setPrivateField(aiService, "aiChatMetaEnabled", true);
+        setPrivateField(aiService, "aiChatMetaRolloutPercent", 100);
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("아이 성장발달 확인해줘")
+                .sessionId("s-clarify")
+                .userId("user")
+                .build();
+
+        AiChatResponse response = aiService.chat(request, "req-clarify", UUID.randomUUID());
+
+        assertEquals("s-clarify", response.getSessionId());
+        assertNotNull(response.getMeta());
+        assertEquals("CLARIFY", response.getMeta().getResponseMode());
+        assertNotNull(response.getMeta().getClarification());
+        verify(webClient, never()).post();
+        verify(promptService, never()).resolveProfileContext(any(), any());
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    @Test
+    void chatHidesMetaWhenRolloutDisabled() {
+        WebClient webClient = mock(WebClient.class);
+        WebClient.Builder builder = mock(WebClient.Builder.class);
+        WebClient.RequestBodyUriSpec requestBodyUriSpec = mock(WebClient.RequestBodyUriSpec.class);
+        WebClient.RequestBodySpec requestBodySpec = mock(WebClient.RequestBodySpec.class);
+        WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
+        WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
+        ChildProfilePromptService promptService = mock(ChildProfilePromptService.class);
+
+        when(promptService.resolveProfileContext(any(), any())).thenReturn(ChildProfilePromptService.ResolvedProfileContext.empty());
+        when(webClient.mutate()).thenReturn(builder);
+        when(builder.baseUrl(anyString())).thenReturn(builder);
+        when(builder.build()).thenReturn(webClient);
+        when(webClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(any(Function.class))).thenReturn(requestBodySpec);
+        when(requestBodySpec.contentType(MediaType.APPLICATION_JSON)).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
+        doReturn(requestHeadersSpec).when(requestBodySpec).bodyValue(any());
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(AiChatResponse.class)).thenReturn(
+                Mono.just(AiChatResponse.builder()
+                        .reply("ok")
+                        .sessionId("s-meta")
+                        .timestamp("2026-02-26T12:00:00")
+                        .meta(AiChatMeta.builder().responseMode("ANSWER").intent("AUTO").build())
+                        .build())
+        );
+
+        AiService aiService = new AiService(webClient, "http://localhost:8000", "", promptService);
+        setPrivateField(aiService, "aiChatMetaEnabled", false);
+        setPrivateField(aiService, "aiChatMetaRolloutPercent", 100);
+
+        AiChatRequest request = AiChatRequest.builder()
+                .message("안녕")
+                .sessionId("s-meta")
+                .userId("user")
+                .build();
+
+        AiChatResponse response = aiService.chat(request, "req-meta", UUID.randomUUID());
+
+        assertNull(response.getMeta());
     }
 }

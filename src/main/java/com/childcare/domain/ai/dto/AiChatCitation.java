@@ -1,7 +1,7 @@
 package com.childcare.domain.ai.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,14 +12,17 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiChatResponse {
-    
-    private String reply;
-    
-    @JsonProperty("session_id")
-    private String sessionId;
-    
-    private String timestamp;
+public class AiChatCitation {
 
-    private AiChatMeta meta;
+    private String label;
+
+    @JsonProperty("source_type")
+    private String sourceType;
+
+    @JsonProperty("basis_date")
+    private String basisDate;
+
+    private String note;
+
+    private String url;
 }
