@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.profile.mapper.ChildProfileMapper">
+
+    <resultMap id="childProfileRecordMap" type="com.childcare.domain.profile.dto.ChildProfileRecord">
+        <result property="childId" column="ch_seq"/>
+        <result property="health" column="health"/>
+        <result property="routine" column="routine"/>
+        <result property="development" column="development"/>
+        <result property="education" column="education"/>
+        <result property="safety" column="safety"/>
+        <result property="misc" column="misc"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="updatedBy" column="updated_by" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+    </resultMap>
+
+    <resultMap id="childProfileSummaryRecordMap" type="com.childcare.domain.profile.dto.ChildProfileSummaryRecord">
+        <result property="childId" column="ch_seq"/>
+        <result property="summaryText" column="summary_text"/>
+        <result property="summaryVersion" column="summary_version"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findProfileByChildId" resultMap="childProfileRecordMap">
+        <![CDATA[
+        SELECT ch_seq, health::text AS health, routine::text AS routine,
+               development::text AS development, education::text AS education,
+               safety::text AS safety, misc::text AS misc,
+               updated_at AS updated_at, updated_by
+        FROM child_profile
+        WHERE ch_seq = #{childId}
+        ]]>
+    </select>
+
+    <select id="findSummaryByChildId" resultMap="childProfileSummaryRecordMap">
+        <![CDATA[
+        SELECT ch_seq, summary_text, summary_version, updated_at AS updated_at
+        FROM child_profile_summary
+        WHERE ch_seq = #{childId}
+        ]]>
+    </select>
+
+    <insert id="insertDefaultProfileIfAbsent">
+        <![CDATA[
+        INSERT INTO child_profile (ch_seq, updated_by)
+        VALUES (#{childId}, #{updatedBy, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid)
+        ON CONFLICT (ch_seq) DO NOTHING
+        ]]>
+    </insert>
+
+    <insert id="insertSummaryIfAbsent">
+        <![CDATA[
+        INSERT INTO child_profile_summary (ch_seq, summary_text, summary_version)
+        VALUES (#{childId}, #{summaryText}, #{summaryVersion})
+        ON CONFLICT (ch_seq) DO NOTHING
+        ]]>
+    </insert>
+
+    <insert id="upsertProfile">
+        <![CDATA[
+        INSERT INTO child_profile (
+            ch_seq, health, routine, development, education, safety, misc, updated_at, updated_by
+        ) VALUES (
+            #{childId},
+            CAST(#{health} AS jsonb),
+            CAST(#{routine} AS jsonb),
+            CAST(#{development} AS jsonb),
+            CAST(#{education} AS jsonb),
+            CAST(#{safety} AS jsonb),
+            CAST(#{misc} AS jsonb),
+            NOW(),
+            #{updatedBy, typeHandler=com.childcare.global.config.UuidTypeHandler}::uuid
+        )
+        ON CONFLICT (ch_seq) DO UPDATE SET
+            health = EXCLUDED.health,
+            routine = EXCLUDED.routine,
+            development = EXCLUDED.development,
+            education = EXCLUDED.education,
+            safety = EXCLUDED.safety,
+            misc = EXCLUDED.misc,
+            updated_at = NOW(),
+            updated_by = EXCLUDED.updated_by
+        ]]>
+    </insert>
+
+    <insert id="upsertSummary">
+        <![CDATA[
+        INSERT INTO child_profile_summary (ch_seq, summary_text, summary_version, updated_at)
+        VALUES (#{childId}, #{summaryText}, #{summaryVersion}, NOW())
+        ON CONFLICT (ch_seq) DO UPDATE SET
+            summary_text = EXCLUDED.summary_text,
+            summary_version = EXCLUDED.summary_version,
+            updated_at = NOW()
+        ]]>
+    </insert>
+
+</mapper>

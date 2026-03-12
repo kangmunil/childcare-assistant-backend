@@ -9,7 +9,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "member")
@@ -19,49 +19,69 @@ import java.util.List;
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 public class Member {
-    
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "mb_seq")
-    private Long mbSeq;
-    
-    @Column(name = "id")
-    private String id;
-    
-    @Column(name = "password")
-    private String password;
-    
+    @Column(name = "id", columnDefinition = "uuid")
+    private UUID id;
+
     @Column(name = "name", nullable = false)
     private String name;
-    
+
     @Column(name = "phone")
     private String phone;
-    
+
     @Column(name = "tel")
     private String tel;
-    
+
     @Column(name = "email")
     private String email;
-    
+
+    @Column(name = "postcode")
+    private String postcode;
+
     @Column(name = "addr1")
     private String addr1;
-    
-    @Column(name = "addr2")
+
+    @Column(name = "addr2", length = 1000)
     private String addr2;
-    
-    @Column(name = "addr3", length = 1000)
-    private String addr3;
-    
+
     @Column(name = "login_date")
     private LocalDateTime loginDate;
-    
-    @Column(name = "leave_date")
-    private LocalDateTime leaveDate;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    @Builder.Default
+    private Role role = Role.USER;
+
+    @Column(name = "invite_code", unique = true)
+    private String inviteCode;
+
+    @Column(name = "invited_by", columnDefinition = "uuid")
+    private UUID invitedBy;
+
+    @Column(name = "provider", length = 20)
+    private String provider;
+
+    @Column(name = "provider_id")
+    private String providerId;
+
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
+    @Column(name = "region_name", length = 50)
+    private String regionName;
+
+    @Column(name = "region_code", length = 20)
+    private String regionCode;
+
+    @Column(name = "parenting_stage", length = 50)
+    private String parentingStage;
+
+    @Column(name = "is_honor_neighbor")
+    @Builder.Default
+    private Boolean isHonorNeighbor = false;
+
     @CreatedDate
-    @Column(name = "reg_date", nullable = false, updatable = false)
-    private LocalDateTime regDate;
-    
-    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<MemberOAuth> oAuthConnections;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 }

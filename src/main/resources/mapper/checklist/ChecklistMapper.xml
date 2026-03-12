@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.checklist.mapper.ChecklistMapper">
+
+    <resultMap id="checklistDtoResultMap" type="com.childcare.domain.checklist.dto.ChecklistDto">
+        <result property="childId" column="ch_seq"/>
+        <result property="itemId" column="cc_gc_seq"/>
+        <result property="itemDiv" column="cc_gc_div"/>
+        <result property="itemCode" column="cc_gc_code"/>
+        <result property="itemContent" column="cc_gc_content"/>
+        <result property="startMonth" column="cc_gc_start_month"/>
+        <result property="endMonth" column="cc_gc_end_month"/>
+    </resultMap>
+
+    <select id="findCheckedByChildId" resultMap="checklistDtoResultMap">
+        <![CDATA[
+        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_div, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
+        FROM (
+            SELECT c.ch_seq, GET_MONTHS_OF_AGE(to_date(c.birth_day,'YYYY-MM-DD')) birthday
+            FROM child c
+            WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+              AND c.ch_seq = #{childId}
+        ) c
+        JOIN cc_grow_checklist_item i ON (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+          --완료 과업은 전체 출력 (월령별 출력을 원하는 경우, 하단 주석 해제)
+          --AND CAST(i.cc_gc_start_month AS INTEGER) <= c.birthday
+          --AND CAST(i.cc_gc_end_month AS INTEGER) >= c.birthday
+        JOIN child_grow_checklist g ON c.ch_seq = g.ch_seq
+          AND g.cc_gc_seq = i.cc_gc_seq
+          AND (g.delete_yn IS NULL OR g.delete_yn != 'Y')
+        WHERE i.cc_gc_div = #{itemDiv}
+        ORDER BY i.cc_gc_seq, i.cc_gc_start_month
+        ]]>
+    </select>
+
+    <select id="findUncheckedByChildId" resultMap="checklistDtoResultMap">
+        <![CDATA[
+        SELECT c.ch_seq, i.cc_gc_seq, i.cc_gc_div, i.cc_gc_code, i.cc_gc_content, i.cc_gc_start_month, i.cc_gc_end_month
+        FROM (
+            SELECT c.ch_seq, GET_MONTHS_OF_AGE(to_date(c.birth_day,'YYYY-MM-DD')) birthday
+            FROM child c
+            WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+              AND c.ch_seq = #{childId}
+        ) c
+        JOIN cc_grow_checklist_item i ON (i.delete_yn IS NULL OR i.delete_yn != 'Y')
+          AND CAST(i.cc_gc_start_month AS INTEGER) <= c.birthday
+          AND CAST(i.cc_gc_end_month AS INTEGER) >= c.birthday
+        LEFT JOIN child_grow_checklist g ON c.ch_seq = g.ch_seq
+          AND g.cc_gc_seq = i.cc_gc_seq
+          AND (g.delete_yn IS NULL OR g.delete_yn != 'Y')
+        WHERE g.gc_seq IS NULL
+            AND i.cc_gc_div = #{itemDiv}
+        ORDER BY i.cc_gc_seq
+        ]]>
+    </select>
+
+    <select id="existsChecklistItem" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM cc_grow_checklist_item
+            WHERE cc_gc_seq = #{itemId}
+              AND (delete_yn IS NULL OR delete_yn != 'Y')
+        )
+    </select>
+
+    <select id="isChecked" resultType="int">
+        SELECT COUNT(*) FROM child_grow_checklist
+        WHERE ch_seq = #{childId}
+          AND cc_gc_seq = #{itemId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </select>
+
+    <insert id="insertCheck">
+        INSERT INTO child_grow_checklist (ch_seq, cc_gc_seq, gc_date, reg_id, reg_date)
+        VALUES (#{childId}, #{itemId}, #{gcDate}, #{regId}::uuid, NOW())
+    </insert>
+
+    <update id="deleteCheck">
+        UPDATE child_grow_checklist
+        SET delete_yn = 'Y',
+            delete_id = #{deleteId}::uuid,
+            delete_date = NOW()
+        WHERE ch_seq = #{childId}
+          AND cc_gc_seq = #{itemId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+    </update>
+
+</mapper>

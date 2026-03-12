@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.child.mapper.ChildMapper">
+
+    <resultMap id="childResultMap" type="com.childcare.domain.child.entity.Child">
+        <id property="chSeq" column="ch_seq"/>
+        <result property="name" column="name"/>
+        <result property="birthDay" column="birth_day"/>
+        <result property="birthTime" column="birth_time"/>
+        <result property="gender" column="gender"/>
+        <result property="memo" column="memo"/>
+        <result property="height" column="height"/>
+        <result property="weight" column="weight"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="deleteDate" column="delete_date"/>
+        <result property="isPrimary" column="is_primary"/>
+    </resultMap>
+
+    <select id="findActiveChildrenByMemberId" resultMap="childResultMap">
+        <![CDATA[
+        SELECT c.*
+        FROM member m
+        JOIN parent p ON m.id = p.mb_id AND p.auth_read = '1'
+        JOIN child c ON c.ch_seq = p.ch_seq AND (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+        WHERE m.id = #{memberId}::uuid
+        ORDER BY c.is_primary desc, c.ch_seq
+        ]]>
+    </select>
+
+    <select id="findActiveChildById" resultMap="childResultMap">
+        <![CDATA[
+        SELECT *
+        FROM child
+        WHERE ch_seq = #{childId}
+          AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ORDER BY is_primary desc, ch_seq
+        ]]>
+    </select>
+
+    <resultMap id="growthHistoryResultMap" type="com.childcare.domain.child.dto.GrowthHistoryDto">
+        <result property="childId" column="ch_seq"/>
+        <result property="month" column="month"/>
+        <result property="height" column="height"/>
+        <result property="weight" column="weight"/>
+    </resultMap>
+
+    <select id="findGrowthHistory" resultMap="growthHistoryResultMap">
+        <![CDATA[
+        SELECT ch_seq, month, height, weight
+        FROM (
+            SELECT
+                c.ch_seq,
+                TO_CHAR(DATE_TRUNC('month', h.reg_date), 'YYYY-MM') AS month,
+                h.height,
+                h.weight,
+                ROW_NUMBER() OVER (
+                    PARTITION BY h.ch_seq, DATE_TRUNC('month', h.reg_date)
+                    ORDER BY h.reg_date DESC
+                ) rn
+            FROM child c
+            JOIN child_grow_history h ON c.ch_seq = h.ch_seq
+                AND (h.delete_yn IS NULL OR h.delete_yn != 'Y')
+            WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+              AND c.ch_seq = #{childId}
+              AND h.reg_date >= DATE_TRUNC('month', NOW() - INTERVAL '4 months')
+        ) sub
+        WHERE rn < 6
+        ORDER BY month
+        ]]>
+    </select>
+
+    <resultMap id="growthStatResultMap" type="com.childcare.domain.child.dto.GrowthHistoryStatDto$GrowthStat">
+        <result property="period" column="week"/>
+        <result property="height" column="total_height"/>
+        <result property="weight" column="total_weight"/>
+    </resultMap>
+
+    <select id="findGrowthHistoryStatsByPeriod" resultMap="growthStatResultMap">
+        SELECT
+        <choose>
+            <when test="periodType == 'day'">
+                TO_CHAR(TO_DATE(gh.gh_date, 'YYYY-MM-DD'), 'YYYY-MM-DD') AS week
+            </when>
+            <when test="periodType == 'week'">
+                TO_CHAR((DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date, 'YYYY-MM-DD') AS week
+            </when>
+            <when test="periodType == 'month'">
+                TO_CHAR(DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::date, 'YYYY-MM') AS week
+            </when>
+            <when test="periodType == 'year'">
+                TO_CHAR(DATE_TRUNC('year', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::date, 'YYYY') AS week
+            </when>
+            <otherwise>
+                TO_CHAR((DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date, 'YYYY-MM-DD') AS week
+            </otherwise>
+        </choose>
+        , MAX(NULLIF(gh.height, '0')) AS total_height
+        , MAX(NULLIF(gh.weight, '0')) AS total_weight
+        FROM child c
+        JOIN child_grow_history gh ON c.ch_seq = gh.ch_seq
+            AND (gh.delete_yn IS NULL OR gh.delete_yn != 'Y')
+        WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+            AND c.ch_seq = #{childId}
+            AND gh.gh_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY
+        <choose>
+            <when test="periodType == 'day'">
+                TO_CHAR(TO_DATE(gh.gh_date, 'YYYY-MM-DD'), 'YYYY-MM-DD')
+            </when>
+            <when test="periodType == 'week'">
+                (DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date
+            </when>
+            <when test="periodType == 'month'">
+                DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))
+            </when>
+            <when test="periodType == 'year'">
+                DATE_TRUNC('year', TO_DATE(gh.gh_date, 'YYYY-MM-DD'))
+            </when>
+            <otherwise>
+                (DATE_TRUNC('month', TO_DATE(gh.gh_date, 'YYYY-MM-DD')) + ((EXTRACT(day FROM TO_DATE(gh.gh_date, 'YYYY-MM-DD'))::int - 1) / 7) * INTERVAL '7 days')::date
+            </otherwise>
+        </choose>
+        ORDER BY week
+    </select>
+
+    <update id="clearPrimaryByMemberId">
+        <![CDATA[
+        UPDATE child
+        SET is_primary = 'N'
+        WHERE ch_seq IN (
+            SELECT p.ch_seq
+            FROM parent p
+            WHERE p.mb_id = #{memberId}::uuid
+        )
+        AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </update>
+
+    <update id="setPrimary">
+        <![CDATA[
+        UPDATE child
+        SET is_primary = 'Y'
+        WHERE ch_seq = #{childId}
+        AND (delete_yn IS NULL OR delete_yn != 'Y')
+        ]]>
+    </update>
+
+</mapper>

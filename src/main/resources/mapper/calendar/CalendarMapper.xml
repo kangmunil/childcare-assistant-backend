@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.childcare.domain.calendar.mapper.CalendarMapper">
+
+    <resultMap id="calendarResultMap" type="com.childcare.domain.calendar.entity.Calendar">
+        <id property="caSeq" column="ca_seq"/>
+        <result property="chSeq" column="ch_seq"/>
+        <result property="div" column="div"/>
+        <result property="title" column="title"/>
+        <result property="caDate" column="ca_date"/>
+        <result property="caTime" column="ca_time"/>
+        <result property="place" column="place"/>
+        <result property="placePostcode" column="place_postcode"/>
+        <result property="placeAddress1" column="place_address1"/>
+        <result property="placeAddress2" column="place_address2"/>
+        <result property="memo" column="memo"/>
+        <result property="regAiYn" column="reg_ai_yn"/>
+        <result property="regId" column="reg_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="regDate" column="reg_date"/>
+        <result property="deleteYn" column="delete_yn"/>
+        <result property="deleteId" column="delete_id" typeHandler="com.childcare.global.config.UuidTypeHandler"/>
+        <result property="deleteDate" column="delete_date"/>
+    </resultMap>
+
+    <sql id="FromCalendar">
+        <![CDATA[
+        FROM child c
+        JOIN child_calendar ca ON c.ch_seq = ca.ch_seq AND (ca.delete_yn IS NULL OR ca.delete_yn != 'Y')
+        WHERE (c.delete_yn IS NULL OR c.delete_yn != 'Y')
+          AND c.ch_seq = ${childId}
+        ]]>
+    </sql>
+
+    <sql id="orderByCalendar">
+        ORDER BY ca.ca_date DESC, ca.ca_time DESC
+    </sql>
+
+    <!-- 자녀별 일정 전체 조회 -->
+    <select id="findCalendarsByChildId" resultMap="calendarResultMap">
+        SELECT ca.*
+        <include refid="FromCalendar">
+            <property name="childId" value="#{childId}"/>
+        </include>
+        <include refid="orderByCalendar"/>
+    </select>
+
+    <!-- 자녀별 특정 날짜 일정 조회 -->
+    <select id="findCalendarsByChildIdAndDate" resultMap="calendarResultMap">
+        SELECT ca.*
+        <include refid="FromCalendar">
+            <property name="childId" value="#{childId}"/>
+        </include>
+          AND ca.ca_date = #{caDate}
+        <include refid="orderByCalendar"/>
+    </select>
+
+    <!-- 자녀별 월별 일정 조회 -->
+    <select id="findCalendarsByChildIdAndMonth" resultMap="calendarResultMap">
+        SELECT ca.*
+        <include refid="FromCalendar">
+            <property name="childId" value="#{childId}"/>
+        </include>
+          AND ca.ca_date LIKE #{yearMonth} || '%'
+        <include refid="orderByCalendar"/>
+    </select>
+
+    <!-- 특정 일정 조회 -->
+    <select id="findActiveCalendarById" resultMap="calendarResultMap">
+        SELECT ca.*
+        <include refid="FromCalendar">
+            <property name="childId" value="#{childId}"/>
+        </include>
+          AND ca.ca_seq = #{caSeq}
+    </select>
+
+</mapper>
